@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import 'skillTestScreen.dart';
+import 'login_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   @override
@@ -9,8 +11,19 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text("Skill Sharing App"),
         backgroundColor: Colors.blueAccent,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () {
+              Provider.of<AuthProvider>(context, listen: false).logout();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => SignInScreen()),
+              );
+            },
+          ),
+        ],
       ),
-
       body: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -26,7 +39,16 @@ class HomeScreen extends StatelessWidget {
               style: TextStyle(fontSize: 16),
             ),
             SizedBox(height: 20),
-
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SkillTestScreen()),
+                );
+              },
+              child: Text("Go to Skill Test Screen"),
+            ),
+            SizedBox(height: 20),
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,

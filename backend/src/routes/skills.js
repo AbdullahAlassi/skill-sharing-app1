@@ -10,7 +10,7 @@ router.post("/add", authMiddleware, async (req, res) => {
     try {
         console.log("Decoded User From Token:", req.user); // Debugging
 
-        const { name, description, catagory, difficulty } = req.body;
+        const { name, description, category, difficulty } = req.body;
         const userId = req.user.id; // Correctly extract user ID
 
         if (!userId) {
@@ -24,7 +24,7 @@ router.post("/add", authMiddleware, async (req, res) => {
         }
 
         // Create and save the new skill
-        const newSkill = new Skill({ name, description, catagory, difficulty, user: userId });
+        const newSkill = new Skill({ name, description, category, difficulty, user: userId });
         await newSkill.save();
 
         // Add skill to user's skills array
