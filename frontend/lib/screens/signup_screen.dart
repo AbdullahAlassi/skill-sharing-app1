@@ -124,9 +124,14 @@ class _SignupScreenState extends State<SignupScreen> {
                   ],
                 ),
                 SizedBox(height: 10),
-                _buildButton("Sign Up", Colors.blue, Colors.white, () {
-                  _signup();
-                }),
+                _buildButton(
+                  "Sign Up",
+                  const Color.fromRGBO(99, 106, 232, 1),
+                  Colors.white,
+                  () {
+                    _signup();
+                  },
+                ),
                 SizedBox(height: 20),
                 Center(child: Text("Or", style: TextStyle(color: Colors.grey))),
                 SizedBox(height: 10),

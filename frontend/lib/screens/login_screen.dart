@@ -96,9 +96,14 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                 ),
                 SizedBox(height: 10),
-                _buildButton("Log In", Colors.blue, Colors.white, () {
-                  _login();
-                }),
+                _buildButton(
+                  "Log In",
+                  const Color.fromRGBO(99, 106, 232, 1),
+                  Colors.white,
+                  () {
+                    _login();
+                  },
+                ),
                 SizedBox(height: 20),
                 Center(child: Text("Or", style: TextStyle(color: Colors.grey))),
                 SizedBox(height: 10),

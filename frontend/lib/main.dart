@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/welcome_screen.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
@@ -54,7 +55,7 @@ class _AuthGateState extends State<AuthGate> {
         ? Scaffold(body: Center(child: CircularProgressIndicator()))
         : Consumer<AuthProvider>(
           builder: (context, authProvider, child) {
-            return authProvider.isAuthenticated ? HomeScreen() : SignInScreen();
+            return authProvider.isAuthenticated ? HomeScreen() : WelcomePage();
           },
         );
   }
