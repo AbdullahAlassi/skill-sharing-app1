@@ -1,62 +1,77 @@
-const express = require("express");
-const router = express.Router();
-const Resource = require("../models/Resources");
-const User = require("../models/User");
-const authMiddleware = require("../middleware/authmiddleware");
+const express = require("express")
+const { check } = require("express-validator")
+const resourceController = require("../controllers/resourceController")
+const auth = require("../middleware/auth")
 
-//  Add a Resource
-router.post("/add", authMiddleware, async (req, res) => {
-  try {
-    const { title, url, skill } = req.body;
-    const userId = req.user.id; // Logged-in user ID
+const router = express.Router()
 
-    // Check if skill exists for the user
-    const user = await User.findById(userId).populate("skills");
-    if (!user.skills.some(s => s._id.toString() === skill)) {
-      return res.status(400).json({ error: "You can only add resources for your own skills." });
-    }
+// @route   GET /api/resources
+// @desc    Get all resources
+// @access  Public
+router.get("/", resourceController.getResources)
 
-    const newResource = new Resource({ title, url, skill, user: userId });
-    await newResource.save();
+// @route   GET /api/resources/:id
+// @desc    Get resource by ID
+// @access  Public
+router.get("/:id", resourceController.getResourceById)
 
-    res.status(201).json({ message: "Resource added successfully", resource: newResource });
-  } catch (error) {
-    console.error("Error Adding Resource:", error);
-    res.status(500).json({ error: "Server error" });
-  }
-});
+// @route   POST /api/resources
+// @desc    Create a new resource
+// @access  Private
+router.post(
+  "/",
+  [
+    auth,
+    [
+      check("title", "Title is required").not().isEmpty(),
+      check("description", "Description is required").not().isEmpty(),
+      check("link", "Link is required").not().isEmpty(),
+      check("skillId", "Skill ID is required").not().isEmpty(),
+      check("type", "Type must be Article, Video, Course, Book, or Other")
+        .optional()
+        .isIn(["Article", "Video", "Course", "Book", "Other"]),
+    ],
+  ],
+  resourceController.createResource,
+)
 
-//  Get All Resources for Logged-in User
-router.get("/", authMiddleware, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const resources = await Resource.find({ user: userId }).populate("skill");
+// @route   PUT /api/resources/:id
+// @desc    Update a resource
+// @access  Private
+router.put(
+  "/:id",
+  [
+    auth,
+    [
+      check("title", "Title cannot be empty if provided").optional().not().isEmpty(),
+      check("description", "Description cannot be empty if provided").optional().not().isEmpty(),
+      check("link", "Link cannot be empty if provided").optional().not().isEmpty(),
+      check("type", "Type must be Article, Video, Course, Book, or Other")
+        .optional()
+        .isIn(["Article", "Video", "Course", "Book", "Other"]),
+    ],
+  ],
+  resourceController.updateResource,
+)
 
-    res.status(200).json(resources);
-  } catch (error) {
-    console.error("Error Fetching Resources:", error);
-    res.status(500).json({ error: "Server error" });
-  }
-});
+// @route   DELETE /api/resources/:id
+// @desc    Delete a resource
+// @access  Private
+router.delete("/:id", auth, resourceController.deleteResource)
 
-//  Delete a Resource (Only the User Who Added It)
-router.delete("/:id", authMiddleware, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const resource = await Resource.findById(req.params.id);
+// @route   GET /api/resources/skill/:skillId
+// @desc    Get resources by skill ID
+// @access  Public
+router.get("/skill/:skillId", resourceController.getResourcesBySkill)
 
-    if (!resource) return res.status(404).json({ error: "Resource not found" });
+// @route   POST /api/resources/:id/review
+// @desc    Add a review to a resource
+// @access  Private
+router.post(
+  "/:id/review",
+  [auth, [check("rating", "Rating is required and must be between 1 and 5").isInt({ min: 1, max: 5 })]],
+  resourceController.addReview,
+)
 
-    if (resource.user.toString() !== userId) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
+module.exports = router
 
-    await resource.deleteOne();
-    res.status(200).json({ message: "Resource deleted successfully" });
-  } catch (error) {
-    console.error("Error Deleting Resource:", error);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-module.exports = router;

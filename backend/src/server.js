@@ -1,33 +1,42 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const mongoose = require("mongoose");
+const express = require("express")
+const cors = require("cors")
+const connectDB = require("./config/db")
+require('dotenv').config({ path: './.env' });
 
-const app = express();
-app.use(express.json());
-app.use(cors());
+// Initialize Express
+const app = express()
 
-const PORT = process.env.PORT || 5001;
-// ✅ Ensure DB_URI is Correctly Loaded
-console.log("Connecting to MongoDB at:", process.env.DB_URI);
+// Connect to Database
+connectDB()
 
-// Connect to MongoDB
-mongoose.connect(process.env.DB_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log("MongoDB Connection Error:",err));
+// Middleware
+app.use(express.json({ extended: false }))
+app.use(cors())
 
-// Default Route
+// Define Routes
+app.use("/api/auth", require("./routes/authRoutes"))
+app.use("/api/profile", require("./routes/profile"))
+app.use("/api/skills", require("./routes/skills"))
+app.use("/api/resources", require("./routes/resources"))
+app.use("/api/progress", require("./routes/progress"))
+app.use("/api/events", require("./routes/event"))
+app.use("/api/social", require("./routes/social"))
+
+// Serve static files from the uploads directory
+app.use("/uploads", express.static("uploads"))
+
+// Default route
 app.get("/", (req, res) => {
-  res.send("Skill Sharing API Running...");
-});
+  res.json({ message: "Welcome to Skill Sharing API" })
+})
 
-const authRoutes = require("./routes/auth");
-app.use("/api/auth", authRoutes);
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack)
+  res.status(500).json({ message: "Something went wrong!" })
+})
 
-const skillRoutes = require("./routes/skills");
-app.use("/api/skills", skillRoutes);
+// Start server
+const PORT = process.env.PORT || 5001
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
 
-const resourceRoutes = require("./routes/resources");
-app.use("/api/resources", resourceRoutes);
-
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
