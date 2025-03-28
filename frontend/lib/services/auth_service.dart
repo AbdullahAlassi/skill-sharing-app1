@@ -1,54 +1,84 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_config.dart';
+import '../models/user_model.dart';
+import '../utils/token_storage.dart';
+import 'api_client.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://localhost:5001/api/auth';
+  final ApiClient _apiClient;
 
-  //User Login
-  static Future<bool> login(String email, String password) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/login'),
-      headers: {'Content-Type': "application/json"},
-      body: jsonEncode({"email": email, "password": password}),
-    );
+  AuthService({ApiClient? apiClient, required String baseUrl})
+    : _apiClient = apiClient ?? ApiClient();
 
-    if (response.statusCode == 200) {
+  // Register a new user
+  Future<ApiResponse<Map<String, dynamic>>> register(
+    String name,
+    String email,
+    String password,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/auth/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'name': name, 'email': email, 'password': password}),
+      );
+
       final data = jsonDecode(response.body);
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString("token", data["token"]);
-      return true;
-    } else {
-      return false;
+
+      if (response.statusCode == 201) {
+        // Save token and user ID
+        await TokenStorage.saveToken(data['token'], data['user']['id']);
+        return ApiResponse.success(data);
+      } else {
+        return ApiResponse.error(data['message'] ?? 'Registration failed');
+      }
+    } catch (e) {
+      return ApiResponse.error(e.toString());
     }
   }
 
-  //User SignUp
-  static Future<bool> signup(String name, String email, String password) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/signup'),
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json", // Ensure the backend accepts JSON
-      },
-      body: jsonEncode({"name": name, "email": email, "password": password}),
-    );
+  // Login user
+  Future<ApiResponse<Map<String, dynamic>>> login(
+    String email,
+    String password,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'password': password}),
+      );
 
-    // Print API response for debugging
-    print("Response Status: ${response.statusCode}");
-    print("Response Body: ${response.body}");
-    return response.statusCode == 200;
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        // Save token and user ID
+        await TokenStorage.saveToken(data['token'], data['user']['id']);
+        return ApiResponse.success(data);
+      } else {
+        return ApiResponse.error(data['message'] ?? 'Login failed');
+      }
+    } catch (e) {
+      return ApiResponse.error(e.toString());
+    }
+  }
+
+  // Get current user
+  Future<ApiResponse<User>> getCurrentUser() async {
+    return await _apiClient.get<User>(
+      'auth/user',
+      (json) => User.fromJson(json),
+    );
   }
 
   // Logout
-  static Future<void> logout() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove("token");
+  Future<void> logout() async {
+    await TokenStorage.clearToken();
   }
 
-  //Check if User is Logged In
-  static Future<bool> isLoggedIn() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getString("token") != null;
+  // Check if user is logged in
+  Future<bool> isLoggedIn() async {
+    return await TokenStorage.isLoggedIn();
   }
 }

@@ -1,95 +1,71 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import '../models/skill_model.dart';
+import 'api_client.dart';
 
 class SkillService {
-  static const String baseUrl =
-      'http://localhost:5001/api/skills'; // Adjust if needed
+  final ApiClient _apiClient;
 
-  static Future<List<Map<String, dynamic>>> getSkills() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString('token');
+  SkillService({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
 
-    final response = await http.get(
-      Uri.parse(baseUrl),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
+  // Get all skills
+  Future<ApiResponse<List<Skill>>> getSkills() async {
+    return await _apiClient.get<List<Skill>>(
+      'skills',
+      (json) => List<Skill>.from(json.map((x) => Skill.fromJson(x))),
     );
-
-    if (response.statusCode == 200) {
-      return List<Map<String, dynamic>>.from(jsonDecode(response.body));
-    } else {
-      return [];
-    }
   }
 
-  static Future<bool> addSkill(
+  // Get skill by ID
+  Future<ApiResponse<Skill>> getSkillById(String id) async {
+    return await _apiClient.get<Skill>(
+      'skills/$id',
+      (json) => Skill.fromJson(json),
+    );
+  }
+
+  // Create a new skill
+  Future<ApiResponse<Skill>> createSkill(
     String name,
-    String description,
     String category,
-    String difficulty,
+    String description,
+    List<String> relatedSkills,
   ) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString('token');
-
-    final response = await http.post(
-      Uri.parse('$baseUrl/add'),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode({
-        "name": name,
-        "description": description,
-        "category": category,
-        "difficulty": difficulty,
-      }),
-    );
-
-    return response.statusCode == 201;
+    return await _apiClient.post<Skill>('skills', {
+      'name': name,
+      'category': category,
+      'description': description,
+      'relatedSkills': relatedSkills,
+    }, (json) => Skill.fromJson(json));
   }
 
-  static Future<bool> updateSkill(
+  // Update a skill
+  Future<ApiResponse<Skill>> updateSkill(
     String id,
     String name,
-    String description,
     String category,
-    String difficulty,
+    String description,
+    List<String> relatedSkills,
   ) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString('token');
-
-    final response = await http.put(
-      Uri.parse('$baseUrl/$id'),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode({
-        "name": name,
-        "description": description,
-        "category": category,
-        "difficulty": difficulty,
-      }),
-    );
-
-    return response.statusCode == 200;
+    return await _apiClient.put<Skill>('skills/$id', {
+      'name': name,
+      'category': category,
+      'description': description,
+      'relatedSkills': relatedSkills,
+    }, (json) => Skill.fromJson(json));
   }
 
-  static Future<bool> deleteSkill(String id) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString('token');
-
-    final response = await http.delete(
-      Uri.parse('$baseUrl/$id'),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
+  // Get all skill categories
+  Future<ApiResponse<List<String>>> getCategories() async {
+    return await _apiClient.get<List<String>>(
+      'skills/categories',
+      (json) => List<String>.from(json),
     );
+  }
 
-    return response.statusCode == 200;
+  // Get skill recommendations for user
+  Future<ApiResponse<List<Skill>>> getRecommendations() async {
+    return await _apiClient.get<List<Skill>>(
+      'skills/recommendations',
+      (json) => List<Skill>.from(json.map((x) => Skill.fromJson(x))),
+    );
   }
 }

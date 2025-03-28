@@ -1,62 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/screens/welcome_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'providers/auth_provider.dart';
-import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/skillTestScreen.dart';
+import 'providers/user_provider.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/signup_screen.dart';
+import 'package:frontend/screens/home/home_screen.dart';
+import 'screens/skills/skills_screen.dart';
+import 'screens/skills/skill_detail_screen.dart';
+import 'screens/events/events_screen.dart';
+import 'package:frontend/screens/events/event_detail_screen.dart';
+import 'utils/token_storage.dart';
+import 'screens/onboarding/onboarding_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
-  runApp(
-    MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => AuthProvider())],
-      child: MyApp(),
-    ),
-  );
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Skill Sharing App',
+      theme: AppTheme.lightTheme,
+      home: const OnboardingScreen(),
       debugShowCheckedModeBanner: false,
-      title: "Skill Sharing App",
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: AuthGate(),
     );
-  }
-}
-
-// Decides which screen to show (Login or Home)
-class AuthGate extends StatefulWidget {
-  @override
-  _AuthGateState createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAuthStatus();
-  }
-
-  Future<void> _checkAuthStatus() async {
-    await Provider.of<AuthProvider>(context, listen: false).checkLoginStatus();
-    setState(() {
-      _isLoading = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _isLoading
-        ? Scaffold(body: Center(child: CircularProgressIndicator()))
-        : Consumer<AuthProvider>(
-          builder: (context, authProvider, child) {
-            return authProvider.isAuthenticated ? HomeScreen() : WelcomePage();
-          },
-        );
   }
 }
