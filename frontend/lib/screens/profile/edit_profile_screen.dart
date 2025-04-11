@@ -1,15 +1,15 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
+import '../../providers/user_provider.dart';
+import '../../services/profile_service.dart';
 import '../../theme/app_theme.dart';
 import 'package:frontend/widget/custome_button.dart';
-import 'package:frontend/widget/custome_text.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  final User? user;
-
-  const EditProfileScreen({Key? key, this.user}) : super(key: key);
+  const EditProfileScreen({super.key});
 
   @override
   _EditProfileScreenState createState() => _EditProfileScreenState();
@@ -17,36 +17,29 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameController;
-  late TextEditingController _bioController;
-  bool _isLoading = false;
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _bioController = TextEditingController();
   File? _imageFile;
-  final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.user?.name ?? '');
-    _bioController = TextEditingController(text: widget.user?.bio ?? '');
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    _nameController.text = userProvider.user?.name ?? '';
+    _bioController.text = userProvider.user?.bio ?? '';
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _bioController.dispose();
-    super.dispose();
-  }
+  Future<void> _pickImage(ImageSource source) async {
+    final pickedFile = await ImagePicker().pickImage(source: source);
 
-  Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
-    );
-
-    if (pickedFile != null) {
-      setState(() {
+    setState(() {
+      if (pickedFile != null) {
         _imageFile = File(pickedFile.path);
-      });
-    }
+      } else {
+        print('No image selected.');
+      }
+    });
   }
 
   Future<void> _saveProfile() async {
@@ -58,115 +51,180 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _isLoading = true;
     });
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final profileService = ProfileService();
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
 
-    // TODO: Implement actual API call to update profile
+      // Update profile information
+      final response = await profileService.updateProfile(
+        _nameController.text.trim(),
+        _bioController.text.trim(),
+      );
 
-    setState(() {
-      _isLoading = false;
-    });
+      if (response.success) {
+        // If profile picture was changed, upload it
+        if (_imageFile != null) {
+          // TODO: Implement image upload functionality
+          // This would require adding a method to upload the image file
+          // For now, we'll skip this part
+        }
 
-    // Return to profile screen
-    Navigator.pop(context);
+        // Reload user data to reflect changes
+        await userProvider.loadUser();
+
+        // Return to profile screen
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Profile')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Profile picture
-              GestureDetector(
-                onTap: _pickImage,
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundImage:
-                          _imageFile != null
-                              ? FileImage(_imageFile!)
-                              : widget.user?.profilePicture != null
-                              ? NetworkImage(widget.user!.profilePicture!)
-                              : null,
-                      child:
-                          (_imageFile == null &&
-                                  widget.user?.profilePicture == null)
-                              ? const Icon(Icons.person, size: 60)
-                              : null,
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          color: Colors.white,
-                          size: 20,
+      appBar: AppBar(
+        title: const Text('Edit Profile'),
+        backgroundColor: AppTheme.primaryColor,
+      ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: ListView(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return SafeArea(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    ListTile(
+                                      leading: const Icon(Icons.camera_alt),
+                                      title: const Text('Take a picture'),
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        _pickImage(ImageSource.camera);
+                                      },
+                                    ),
+                                    ListTile(
+                                      leading: const Icon(Icons.image),
+                                      title: const Text('Choose from gallery'),
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        _pickImage(ImageSource.gallery);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                        child: Center(
+                          child: Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 60,
+                                backgroundImage:
+                                    _imageFile != null
+                                        ? FileImage(_imageFile!)
+                                            as ImageProvider
+                                        : NetworkImage(
+                                          Provider.of<UserProvider>(
+                                                context,
+                                              ).user?.profilePicture ??
+                                              'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
+                                        ),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryColor,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  padding: const EdgeInsets.all(8),
+                                  child: const Icon(
+                                    Icons.edit,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+
+                      // Name field
+                      const Text(
+                        "Name",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          hintText: 'Enter your name',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Bio field
+                      const Text(
+                        "Bio",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _bioController,
+                        decoration: const InputDecoration(
+                          hintText: 'Enter your bio',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 20),
+
+                      CustomButton(
+                        text: "Save Profile",
+                        onPressed: _saveProfile,
+                        isLoading: _isLoading,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // Name field
-              CustomTextField(
-                label: 'Full Name',
-                hint: 'Enter your full name',
-                controller: _nameController,
-                prefixIcon: const Icon(Icons.person_outline),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Bio field
-              CustomTextField(
-                label: 'Bio',
-                hint: 'Tell us about yourself',
-                controller: _bioController,
-                prefixIcon: const Icon(Icons.info_outline),
-                maxLines: 4,
-              ),
-              const SizedBox(height: 32),
-
-              // Save button
-              CustomButton(
-                text: 'Save Changes',
-                onPressed: _saveProfile,
-                isLoading: _isLoading,
-              ),
-              const SizedBox(height: 16),
-
-              // Cancel button
-              CustomButton(
-                text: 'Cancel',
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                type: ButtonType.secondary,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

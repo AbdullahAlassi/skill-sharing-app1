@@ -1,25 +1,70 @@
+import 'dart:async';
 import '../models/event_model.dart';
 import 'api_client.dart';
+import 'skill_service.dart';
+import 'dart:convert';
 
 class EventService {
   final ApiClient _apiClient;
+  static const Duration _timeoutDuration = Duration(seconds: 10);
 
   EventService({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
 
   // Get all events
   Future<ApiResponse<List<Event>>> getEvents() async {
-    return await _apiClient.get<List<Event>>(
-      'events',
-      (json) => List<Event>.from(json.map((x) => Event.fromJson(x))),
-    );
+    try {
+      final response = await _apiClient
+          .get<List<Event>>('events', (json, _) {
+            if (json is String) {
+              final parsedJson = jsonDecode(json);
+              if (parsedJson is List) {
+                return parsedJson.map((x) => Event.fromJson(x)).toList();
+              }
+            } else if (json is List) {
+              return json.map((x) => Event.fromJson(x)).toList();
+            }
+            return [];
+          })
+          .timeout(_timeoutDuration);
+
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      print('Error in getEvents: $e');
+      return ApiResponse(
+        success: false,
+        error: 'Failed to load events: ${e.toString()}',
+        statusCode: 500,
+      );
+    }
   }
 
   // Get event by ID
   Future<ApiResponse<Event>> getEventById(String id) async {
-    return await _apiClient.get<Event>(
-      'events/$id',
-      (json) => Event.fromJson(json),
-    );
+    try {
+      final response = await _apiClient
+          .get<Event>('events/$id', (json, _) => Event.fromJson(json))
+          .timeout(_timeoutDuration);
+
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      return ApiResponse(
+        success: false,
+        error: 'Failed to load event: ${e.toString()}',
+        statusCode: 500,
+      );
+    }
   }
 
   // Create a new event
@@ -31,20 +76,76 @@ class EventService {
     String location,
     bool isVirtual,
     String? meetingLink,
-    List<String> relatedSkills,
+    List<String> selectedSkills,
     int? maxParticipants,
   ) async {
-    return await _apiClient.post<Event>('events', {
-      'title': title,
-      'description': description,
-      'date': date.toIso8601String(),
-      if (endDate != null) 'endDate': endDate.toIso8601String(),
-      'location': location,
-      'isVirtual': isVirtual,
-      if (meetingLink != null) 'meetingLink': meetingLink,
-      'relatedSkills': relatedSkills,
-      if (maxParticipants != null) 'maxParticipants': maxParticipants,
-    }, (json) => Event.fromJson(json));
+    try {
+      print('Creating event with data:');
+      print('Title: $title');
+      print('Description: $description');
+      print('Date: ${date.toIso8601String()}');
+      print('End Date: ${endDate?.toIso8601String()}');
+      print('Location: $location');
+      print('Is Virtual: $isVirtual');
+      print('Meeting Link: $meetingLink');
+      print('Selected Skills: $selectedSkills');
+      print('Max Participants: $maxParticipants');
+
+      // Get user's skills
+      final skillService = SkillService();
+      final skillsResponse = await skillService.getSkills().timeout(
+        _timeoutDuration,
+      );
+
+      if (!skillsResponse.success) {
+        return ApiResponse(
+          success: false,
+          error: 'Failed to fetch skills',
+          statusCode: skillsResponse.statusCode,
+        );
+      }
+
+      // Filter selected skills from user's skills
+      final userSkills = skillsResponse.data ?? [];
+      final selectedSkillIds =
+          userSkills
+              .where((skill) => selectedSkills.contains(skill.name))
+              .map((skill) => skill.id)
+              .toList();
+
+      final response = await _apiClient
+          .post<Event>('events', {
+            'title': title,
+            'description': description,
+            'date': date.toIso8601String(),
+            if (endDate != null) 'endDate': endDate.toIso8601String(),
+            'location': location,
+            'isVirtual': isVirtual,
+            if (meetingLink != null) 'meetingLink': meetingLink,
+            'relatedSkills': selectedSkillIds,
+            if (maxParticipants != null) 'maxParticipants': maxParticipants,
+          }, (json, _) => Event.fromJson(json))
+          .timeout(_timeoutDuration);
+
+      if (!response.success) {
+        print('Create event error: ${response.error}');
+        print('Response status: ${response.statusCode}');
+        print('Response body: ${response.body}');
+      }
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      return ApiResponse(
+        success: false,
+        error: 'Failed to create event: ${e.toString()}',
+        statusCode: 500,
+      );
+    }
   }
 
   // Update an event
@@ -60,51 +161,142 @@ class EventService {
     List<String>? relatedSkills,
     int? maxParticipants,
   ) async {
-    return await _apiClient.put<Event>('events/$id', {
-      if (title != null) 'title': title,
-      if (description != null) 'description': description,
-      if (date != null) 'date': date.toIso8601String(),
-      'endDate': endDate?.toIso8601String(),
-      if (location != null) 'location': location,
-      if (isVirtual != null) 'isVirtual': isVirtual,
-      'meetingLink': meetingLink,
-      if (relatedSkills != null) 'relatedSkills': relatedSkills,
-      'maxParticipants': maxParticipants,
-    }, (json) => Event.fromJson(json));
+    try {
+      final response = await _apiClient
+          .put<Event>('events/$id', {
+            if (title != null) 'title': title,
+            if (description != null) 'description': description,
+            if (date != null) 'date': date.toIso8601String(),
+            if (endDate != null) 'endDate': endDate.toIso8601String(),
+            if (location != null) 'location': location,
+            if (isVirtual != null) 'isVirtual': isVirtual,
+            if (meetingLink != null) 'meetingLink': meetingLink,
+            if (relatedSkills != null) 'relatedSkills': relatedSkills,
+            if (maxParticipants != null) 'maxParticipants': maxParticipants,
+          }, (json, _) => Event.fromJson(json))
+          .timeout(_timeoutDuration);
+
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      return ApiResponse(
+        success: false,
+        error: 'Failed to update event: ${e.toString()}',
+        statusCode: 500,
+      );
+    }
   }
 
   // Delete an event
   Future<ApiResponse<Map<String, dynamic>>> deleteEvent(String id) async {
-    return await _apiClient.delete<Map<String, dynamic>>(
-      'events/$id',
-      (json) => json,
-    );
+    try {
+      final response = await _apiClient
+          .delete<Map<String, dynamic>>(
+            'events/$id',
+            (json, _) => json as Map<String, dynamic>,
+          )
+          .timeout(_timeoutDuration);
+
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      return ApiResponse(
+        success: false,
+        error: 'Failed to delete event: ${e.toString()}',
+        statusCode: 500,
+      );
+    }
   }
 
   // Register for an event
-  Future<ApiResponse<Map<String, dynamic>>> registerForEvent(String id) async {
-    return await _apiClient.post<Map<String, dynamic>>(
-      'events/$id/register',
-      {},
-      (json) => json,
-    );
+  Future<ApiResponse<Event>> registerForEvent(String id) async {
+    try {
+      final response = await _apiClient
+          .post<Event>('events/$id/register', {}, (json, _) {
+            if (json is String) {
+              final parsedJson = jsonDecode(json);
+              return Event.fromJson(parsedJson);
+            }
+            return Event.fromJson(json);
+          })
+          .timeout(_timeoutDuration);
+
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      print('Error in registerForEvent: $e');
+      return ApiResponse(
+        success: false,
+        error: 'Failed to register for event: ${e.toString()}',
+        statusCode: 500,
+      );
+    }
   }
 
   // Unregister from an event
-  Future<ApiResponse<Map<String, dynamic>>> unregisterFromEvent(
-    String id,
-  ) async {
-    return await _apiClient.delete<Map<String, dynamic>>(
-      'events/$id/register',
-      (json) => json,
-    );
+  Future<ApiResponse<Event>> unregisterFromEvent(String id) async {
+    try {
+      final response = await _apiClient
+          .delete<Event>(
+            'events/$id/register',
+            (json, _) => Event.fromJson(json),
+          )
+          .timeout(_timeoutDuration);
+
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      return ApiResponse(
+        success: false,
+        error: 'Failed to unregister from event: ${e.toString()}',
+        statusCode: 500,
+      );
+    }
   }
 
   // Get events user is registered for
   Future<ApiResponse<List<Event>>> getUserEvents() async {
-    return await _apiClient.get<List<Event>>(
-      'events/user',
-      (json) => List<Event>.from(json.map((x) => Event.fromJson(x))),
-    );
+    try {
+      final response = await _apiClient
+          .get<List<Event>>(
+            'events/user/events',
+            (json, _) => (json as List).map((x) => Event.fromJson(x)).toList(),
+          )
+          .timeout(_timeoutDuration);
+
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      return ApiResponse(
+        success: false,
+        error: 'Failed to load user events: ${e.toString()}',
+        statusCode: 500,
+      );
+    }
   }
 }

@@ -122,37 +122,50 @@ exports.getCategories = async (req, res) => {
 // @access  Private
 exports.getRecommendations = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate("skills.skill")
+    const user = await User.findById(req.user.id).populate("skills.skill");
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" })
+      return res.status(404).json({ message: "User not found" });
     }
 
     // Get user's current skill IDs
-    const userSkillIds = user.skills.map((s) => s.skill._id.toString())
+    const userSkillIds = user.skills.map((s) => s.skill._id.toString());
 
     // Get user's skill categories
-    const userCategories = user.skills.map((s) => s.skill.category)
+    const userCategories = user.skills.map((s) => s.skill.category);
 
-    // Find skills in the same categories but not in user's skills
-    const recommendations = await Skill.find({
-      _id: { $nin: userSkillIds },
-      category: { $in: userCategories },
-    }).limit(10)
+    let recommendations = [];
 
-    // If not enough recommendations, add some popular skills
+    // If user has skills, find related skills
+    if (userSkillIds.length > 0) {
+      recommendations = await Skill.find({
+        _id: { $nin: userSkillIds },
+        category: { $in: userCategories },
+      }).limit(10);
+    }
+
+    // If not enough recommendations or user has no skills, add popular skills
     if (recommendations.length < 5) {
       const additionalSkills = await Skill.find({
         _id: { $nin: [...userSkillIds, ...recommendations.map((r) => r._id)] },
-      }).limit(5 - recommendations.length)
+      })
+        .sort({ createdAt: -1 }) // Sort by newest first
+        .limit(5 - recommendations.length);
 
-      recommendations.push(...additionalSkills)
+      recommendations.push(...additionalSkills);
     }
 
-    res.json(recommendations)
+    // If still no recommendations, get some default skills
+    if (recommendations.length === 0) {
+      recommendations = await Skill.find()
+        .sort({ createdAt: -1 })
+        .limit(5);
+    }
+
+    res.json(recommendations);
   } catch (err) {
-    console.error("Get recommendations error:", err.message)
-    res.status(500).json({ message: "Server error" })
+    console.error("Get recommendations error:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
-}
+};
 

@@ -41,13 +41,13 @@ class Event {
       date: DateTime.parse(json['date']),
       endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
       location: json['location'],
-      isVirtual: json['isVirtual'],
+      isVirtual: json['isVirtual'] ?? true,
       meetingLink: json['meetingLink'],
       image: json['image'],
       relatedSkills:
           json['relatedSkills'] != null
               ? List<String>.from(
-                json['relatedSkills'].map((x) => x is String ? x : x['_id']),
+                json['relatedSkills'].map((x) => x['name'] ?? x.toString()),
               )
               : [],
       organizerId:
@@ -75,18 +75,17 @@ class Event {
       'title': title,
       'description': description,
       'date': date.toIso8601String(),
-      'endDate': endDate?.toIso8601String(),
+      if (endDate != null) 'endDate': endDate!.toIso8601String(),
       'location': location,
       'isVirtual': isVirtual,
-      'meetingLink': meetingLink,
+      if (meetingLink != null) 'meetingLink': meetingLink,
       'relatedSkills': relatedSkills,
-      'maxParticipants': maxParticipants,
+      if (maxParticipants != null) 'maxParticipants': maxParticipants,
     };
   }
 
-  bool get isUserRegistered => participants.any(
-    (p) => p.userId == 'currentUserId',
-  ); // Replace with actual user ID check
+  bool get isUserRegistered =>
+      participants.any((p) => p.userId == 'currentUserId');
   bool get isUpcoming => date.isAfter(DateTime.now());
   bool get isFull =>
       maxParticipants != null && participants.length >= maxParticipants!;

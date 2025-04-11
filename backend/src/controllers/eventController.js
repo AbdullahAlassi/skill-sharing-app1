@@ -44,194 +44,220 @@ exports.getEventById = async (req, res) => {
 // @desc    Create a new event
 // @access  Private
 exports.createEvent = async (req, res) => {
-  const errors = validationResult(req)
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() })
-  }
-
-  const { title, description, date, endDate, location, isVirtual, meetingLink, relatedSkills, maxParticipants } =
-    req.body
-
   try {
-    // Check if related skills exist
-    if (relatedSkills && relatedSkills.length > 0) {
-      const skillCount = await Skill.countDocuments({
-        _id: { $in: relatedSkills },
-      })
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
-      if (skillCount !== relatedSkills.length) {
-        return res.status(400).json({ message: "One or more skills not found" })
-      }
+    const {
+      title,
+      description,
+      date,
+      endDate,
+      location,
+      isVirtual,
+      meetingLink,
+      relatedSkills,
+      maxParticipants,
+    } = req.body;
+
+    // Validate date
+    if (new Date(date) < new Date()) {
+      return res.status(400).json({ message: "Event date must be in the future" });
+    }
+
+    // Validate endDate if provided
+    if (endDate && new Date(endDate) < new Date(date)) {
+      return res.status(400).json({ message: "End date must be after start date" });
+    }
+
+    // Validate maxParticipants if provided
+    if (maxParticipants && maxParticipants < 1) {
+      return res.status(400).json({ message: "Max participants must be at least 1" });
     }
 
     // Create new event
     const event = new Event({
       title,
       description,
-      date,
-      endDate: endDate || null,
-      location: location || "Online",
-      isVirtual: isVirtual !== undefined ? isVirtual : true,
+      date: new Date(date),
+      endDate: endDate ? new Date(endDate) : undefined,
+      location,
+      isVirtual: isVirtual ?? true,
       meetingLink,
       relatedSkills: relatedSkills || [],
+      maxParticipants,
       organizer: req.user.id,
-      maxParticipants: maxParticipants || null,
-    })
+    });
 
-    await event.save()
+    await event.save();
 
-    // Populate references before sending response
-    await event.populate("organizer", "name")
-    await event.populate("relatedSkills", "name category")
+    // Populate the event with organizer and skills
+    const populatedEvent = await Event.findById(event._id)
+      .populate("organizer", "name profilePicture")
+      .populate("relatedSkills", "name category");
 
-    res.status(201).json(event)
+    res.status(201).json(populatedEvent);
   } catch (err) {
-    console.error("Create event error:", err.message)
-    res.status(500).json({ message: "Server error" })
+    console.error("Create event error:", err);
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ message: err.message });
+    }
+    res.status(500).json({ message: "Server error" });
   }
-}
+};
 
 // @route   PUT /api/events/:id
 // @desc    Update an event
 // @access  Private
 exports.updateEvent = async (req, res) => {
-  const errors = validationResult(req)
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() })
-  }
-
-  const { title, description, date, endDate, location, isVirtual, meetingLink, relatedSkills, maxParticipants } =
-    req.body
-
   try {
-    const event = await Event.findById(req.params.id)
+    const {
+      title,
+      description,
+      date,
+      endDate,
+      location,
+      isVirtual,
+      meetingLink,
+      relatedSkills,
+      maxParticipants,
+    } = req.body;
 
+    // Find event and check if user is organizer
+    const event = await Event.findById(req.params.id);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" })
+      return res.status(404).json({ message: "Event not found" });
     }
 
-    // Check if user is the organizer
     if (event.organizer.toString() !== req.user.id) {
-      return res.status(401).json({ message: "Not authorized to update this event" })
+      return res.status(403).json({ message: "Not authorized" });
     }
 
-    // Update fields
-    if (title) event.title = title
-    if (description) event.description = description
-    if (date) event.date = date
-    if (endDate !== undefined) event.endDate = endDate
-    if (location) event.location = location
-    if (isVirtual !== undefined) event.isVirtual = isVirtual
-    if (meetingLink !== undefined) event.meetingLink = meetingLink
-    if (relatedSkills) event.relatedSkills = relatedSkills
-    if (maxParticipants !== undefined) event.maxParticipants = maxParticipants
+    // Update event fields
+    event.title = title ?? event.title;
+    event.description = description ?? event.description;
+    event.date = date ? new Date(date) : event.date;
+    event.endDate = endDate ? new Date(endDate) : event.endDate;
+    event.location = location ?? event.location;
+    event.isVirtual = isVirtual ?? event.isVirtual;
+    event.meetingLink = meetingLink ?? event.meetingLink;
+    event.relatedSkills = relatedSkills ?? event.relatedSkills;
+    event.maxParticipants = maxParticipants ?? event.maxParticipants;
 
-    await event.save()
+    await event.save();
 
-    res.json(event)
+    // Populate the updated event
+    const populatedEvent = await Event.findById(event._id)
+      .populate("organizer", "name profilePicture")
+      .populate("relatedSkills", "name category")
+      .populate("participants.user", "name profilePicture");
+
+    res.json(populatedEvent);
   } catch (err) {
-    console.error("Update event error:", err.message)
-    res.status(500).json({ message: "Server error" })
+    console.error("Update event error:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
-}
+};
 
 // @route   DELETE /api/events/:id
 // @desc    Delete an event
 // @access  Private
 exports.deleteEvent = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id)
-
+    const event = await Event.findById(req.params.id);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" })
+      return res.status(404).json({ message: "Event not found" });
     }
 
-    // Check if user is the organizer
     if (event.organizer.toString() !== req.user.id) {
-      return res.status(401).json({ message: "Not authorized to delete this event" })
+      return res.status(403).json({ message: "Not authorized" });
     }
 
-    await event.remove()
-
-    res.json({ message: "Event removed" })
+    await event.remove();
+    res.json({ message: "Event deleted" });
   } catch (err) {
-    console.error("Delete event error:", err.message)
-    res.status(500).json({ message: "Server error" })
+    console.error("Delete event error:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
-}
+};
 
 // @route   POST /api/events/:id/register
 // @desc    Register for an event
 // @access  Private
 exports.registerForEvent = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id)
-
+    const event = await Event.findById(req.params.id);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" })
-    }
-
-    // Check if event date has passed
-    if (new Date(event.date) < new Date()) {
-      return res.status(400).json({ message: "Cannot register for past events" })
-    }
-
-    // Check if user is already registered
-    const alreadyRegistered = event.participants.some((participant) => participant.user.toString() === req.user.id)
-
-    if (alreadyRegistered) {
-      return res.status(400).json({ message: "Already registered for this event" })
+      return res.status(404).json({ message: "Event not found" });
     }
 
     // Check if event is full
     if (event.maxParticipants && event.participants.length >= event.maxParticipants) {
-      return res.status(400).json({ message: "Event is full" })
+      return res.status(400).json({ message: "Event is full" });
+    }
+
+    // Check if user is already registered
+    const isRegistered = event.participants.some(
+      (p) => p.user.toString() === req.user.id
+    );
+    if (isRegistered) {
+      return res.status(400).json({ message: "Already registered for this event" });
     }
 
     // Add user to participants
     event.participants.push({
       user: req.user.id,
       registeredAt: Date.now(),
-    })
+    });
 
-    await event.save()
+    await event.save();
 
-    res.json({ message: "Successfully registered for event" })
+    // Populate the updated event
+    const populatedEvent = await Event.findById(event._id)
+      .populate("organizer", "name profilePicture")
+      .populate("relatedSkills", "name category")
+      .populate("participants.user", "name profilePicture");
+
+    res.json(populatedEvent);
   } catch (err) {
-    console.error("Register for event error:", err.message)
-    res.status(500).json({ message: "Server error" })
+    console.error("Register for event error:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
-}
+};
 
 // @route   DELETE /api/events/:id/register
 // @desc    Unregister from an event
 // @access  Private
 exports.unregisterFromEvent = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id)
-
+    const event = await Event.findById(req.params.id);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" })
-    }
-
-    // Check if event date has passed
-    if (new Date(event.date) < new Date()) {
-      return res.status(400).json({ message: "Cannot unregister from past events" })
+      return res.status(404).json({ message: "Event not found" });
     }
 
     // Remove user from participants
-    event.participants = event.participants.filter((participant) => participant.user.toString() !== req.user.id)
+    event.participants = event.participants.filter(
+      (p) => p.user.toString() !== req.user.id
+    );
 
-    await event.save()
+    await event.save();
 
-    res.json({ message: "Successfully unregistered from event" })
+    // Populate the updated event
+    const populatedEvent = await Event.findById(event._id)
+      .populate("organizer", "name profilePicture")
+      .populate("relatedSkills", "name category")
+      .populate("participants.user", "name profilePicture");
+
+    res.json(populatedEvent);
   } catch (err) {
-    console.error("Unregister from event error:", err.message)
-    res.status(500).json({ message: "Server error" })
+    console.error("Unregister from event error:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
-}
+};
 
-// @route   GET /api/events/user
+// @route   GET /api/events/user/events
 // @desc    Get events user is registered for
 // @access  Private
 exports.getUserEvents = async (req, res) => {
@@ -239,14 +265,15 @@ exports.getUserEvents = async (req, res) => {
     const events = await Event.find({
       "participants.user": req.user.id,
     })
-      .populate("organizer", "name")
+      .populate("organizer", "name profilePicture")
       .populate("relatedSkills", "name category")
-      .sort({ date: 1 })
+      .populate("participants.user", "name profilePicture")
+      .sort({ date: 1 });
 
-    res.json(events)
+    res.json(events);
   } catch (err) {
-    console.error("Get user events error:", err.message)
-    res.status(500).json({ message: "Server error" })
+    console.error("Get user events error:", err.message);
+    res.status(500).json({ message: "Server error" });
   }
-}
+};
 

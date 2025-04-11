@@ -1,100 +1,127 @@
-import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../config/app_config.dart';
 import '../models/user_model.dart';
-import '../utils/token_storage.dart';
 import 'api_client.dart';
+import '../utils/json_parser.dart';
+import 'dart:convert';
+import 'dart:async';
 
 class ProfileService {
   final ApiClient _apiClient;
+  final Duration _timeoutDuration = Duration(seconds: 10);
 
   ProfileService({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
 
-  // Get user profile
-  Future<ApiResponse<User>> getUserProfile() async {
-    return await _apiClient.get<User>('profile', (json) => User.fromJson(json));
-  }
-
   // Update user profile
   Future<ApiResponse<User>> updateProfile(String name, String bio) async {
-    return await _apiClient.put<User>('profile', {
-      'name': name,
-      'bio': bio,
-    }, (json) => User.fromJson(json));
+    return await _apiClient.put<User>('profile', {'name': name, 'bio': bio}, (
+      responseBody,
+      _,
+    ) {
+      // Parse the response body first
+      final jsonData = JsonParser.parseNonStandardJson(responseBody);
+      return User.fromJson(jsonData);
+    });
   }
 
   // Add skill to user profile
-  Future<ApiResponse<List<UserSkill>>> addSkill(
-    String skillId,
-    String proficiency,
-  ) async {
-    return await _apiClient.post<List<UserSkill>>(
-      'profile/skills',
-      {'skillId': skillId, 'proficiency': proficiency},
-      (json) => List<UserSkill>.from(json.map((x) => UserSkill.fromJson(x))),
-    );
+  Future<ApiResponse<User>> addSkill(String skillId, String proficiency) async {
+    try {
+      final response = await _apiClient
+          .post<User>(
+            'profile/skills',
+            {'skillId': skillId, 'proficiency': proficiency},
+            (json, _) {
+              if (json is String) {
+                final parsedJson = jsonDecode(json);
+                if (parsedJson is List && parsedJson.isNotEmpty) {
+                  // If the response is a list, take the first item
+                  return User.fromJson(
+                    parsedJson.first as Map<String, dynamic>,
+                  );
+                }
+              } else if (json is List && json.isNotEmpty) {
+                // If the response is already a list, take the first item
+                return User.fromJson(json.first as Map<String, dynamic>);
+              } else if (json is Map) {
+                return User.fromJson(json as Map<String, dynamic>);
+              }
+              throw Exception('Invalid response format');
+            },
+          )
+          .timeout(_timeoutDuration);
+
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      print('Error in addSkill: $e');
+      return ApiResponse(
+        success: false,
+        error: 'Failed to add skill: ${e.toString()}',
+        statusCode: 500,
+      );
+    }
   }
 
   // Remove skill from user profile
-  Future<ApiResponse<List<UserSkill>>> removeSkill(String skillId) async {
-    return await _apiClient.delete<List<UserSkill>>(
-      'profile/skills/$skillId',
-      (json) => List<UserSkill>.from(json.map((x) => UserSkill.fromJson(x))),
-    );
-  }
-
-  // Add interest to user profile
-  Future<ApiResponse<List<dynamic>>> addInterest(String skillId) async {
-    return await _apiClient.post<List<dynamic>>('profile/interests', {
-      'skillId': skillId,
-    }, (json) => json);
-  }
-
-  // Remove interest from user profile
-  Future<ApiResponse<List<dynamic>>> removeInterest(String skillId) async {
-    return await _apiClient.delete<List<dynamic>>(
-      'profile/interests/$skillId',
-      (json) => json,
-    );
-  }
-
-  // Upload profile picture
-  Future<ApiResponse<Map<String, dynamic>>> uploadProfilePicture(
-    File image,
-  ) async {
+  Future<ApiResponse<User>> removeSkill(String skillId) async {
     try {
-      final token = await TokenStorage.getToken();
+      final response = await _apiClient
+          .delete<User>('profile/skills/$skillId', (json, _) {
+            if (json is String) {
+              final parsedJson = jsonDecode(json);
+              if (parsedJson is List && parsedJson.isNotEmpty) {
+                // If the response is a list, take the first item
+                return User.fromJson(parsedJson.first as Map<String, dynamic>);
+              }
+            } else if (json is List && json.isNotEmpty) {
+              // If the response is already a list, take the first item
+              return User.fromJson(json.first as Map<String, dynamic>);
+            } else if (json is Map) {
+              return User.fromJson(json as Map<String, dynamic>);
+            }
+            throw Exception('Invalid response format');
+          })
+          .timeout(_timeoutDuration);
 
-      if (token == null) {
-        return ApiResponse.error('Not authenticated');
-      }
-
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${AppConfig.apiBaseUrl}/profile/picture'),
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
       );
-
-      request.headers.addAll({'Authorization': 'Bearer $token'});
-
-      request.files.add(
-        await http.MultipartFile.fromPath('profilePicture', image.path),
-      );
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        return ApiResponse.success(
-          Map<String, dynamic>.from(jsonDecode(response.body)),
-        );
-      } else {
-        final error = jsonDecode(response.body)['message'] ?? 'Upload failed';
-        return ApiResponse.error(error);
-      }
     } catch (e) {
-      return ApiResponse.error(e.toString());
+      print('Error in removeSkill: $e');
+      return ApiResponse(
+        success: false,
+        error: 'Failed to remove skill: ${e.toString()}',
+        statusCode: 500,
+      );
     }
+  }
+
+  // Update profile picture
+  Future<ApiResponse<User>> updateProfilePicture(String imageUrl) async {
+    return await _apiClient.put<User>(
+      'profile/picture',
+      {'profilePicture': imageUrl},
+      (responseBody, _) {
+        final jsonData = JsonParser.parseNonStandardJson(responseBody);
+        return User.fromJson(jsonData);
+      },
+    );
+  }
+
+  // Get user profile
+  Future<ApiResponse<User>> getProfile() async {
+    return await _apiClient.get<User>('profile', (responseBody, _) {
+      final jsonData = JsonParser.parseNonStandardJson(responseBody);
+      return User.fromJson(jsonData);
+    });
   }
 }

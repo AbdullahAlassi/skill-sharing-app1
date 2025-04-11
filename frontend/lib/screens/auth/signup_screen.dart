@@ -4,9 +4,13 @@ import 'package:frontend/widget/custome_button.dart';
 import 'package:frontend/widget/custome_text.dart';
 import '../home/home_screen.dart';
 import 'login_screen.dart';
+import 'package:provider/provider.dart';
+import '../../providers/user_provider.dart';
+import '../../services/auth_service.dart';
+import '../../config/app_config.dart';
 
 class SignupScreen extends StatefulWidget {
-  const SignupScreen({Key? key}) : super(key: key);
+  const SignupScreen({super.key});
 
   @override
   _SignupScreenState createState() => _SignupScreenState();
@@ -42,19 +46,46 @@ class _SignupScreenState extends State<SignupScreen> {
       _errorMessage = null;
     });
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Create an instance of AuthService
+      final authService = AuthService(baseUrl: AppConfig.apiBaseUrl);
 
-    // TODO: Implement actual signup with API
-
-    setState(() {
-      _isLoading = false;
-      // For demo purposes, navigate to home screen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      // Call the register method
+      final response = await authService.register(
+        _nameController.text.trim(),
+        _emailController.text.trim(),
+        _passwordController.text,
       );
-    });
+
+      if (response.success) {
+        // If registration is successful, load the user data using the provider
+        await Provider.of<UserProvider>(context, listen: false).loadUser();
+
+        // Navigate to home screen
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        }
+      } else {
+        // If registration fails, show the error message
+        if (mounted) {
+          setState(() {
+            _errorMessage = response.error;
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      // Handle any exceptions
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'An error occurred: ${e.toString()}';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override

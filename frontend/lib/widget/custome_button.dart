@@ -5,69 +5,121 @@ enum ButtonType { primary, secondary, text }
 
 class CustomButton extends StatelessWidget {
   final String text;
-  final VoidCallback? onPressed; // Changed to nullable
+  final VoidCallback onPressed;
   final ButtonType type;
   final bool isLoading;
-  final bool isFullWidth;
   final IconData? icon;
+  final double? width;
+  final double? height;
 
   const CustomButton({
-    Key? key,
+    super.key,
     required this.text,
-    required this.onPressed, // Still required, but can be null
+    required this.onPressed,
     this.type = ButtonType.primary,
     this.isLoading = false,
-    this.isFullWidth = true,
     this.icon,
-  }) : super(key: key);
+    this.width,
+    this.height,
+  });
 
   @override
   Widget build(BuildContext context) {
-    Widget buttonContent =
-        isLoading
-            ? const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 2,
-              ),
-            )
-            : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 20),
-                  const SizedBox(width: 8),
-                ],
-                Text(text),
-              ],
-            );
-
-    Widget button;
     switch (type) {
       case ButtonType.primary:
-        button = ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          child: buttonContent,
+        return SizedBox(
+          width: width ?? double.infinity,
+          height: height ?? 50,
+          child: ElevatedButton(
+            onPressed: isLoading ? null : onPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child:
+                isLoading
+                    ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                    : icon != null
+                    ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icon),
+                        const SizedBox(width: 8),
+                        Text(text),
+                      ],
+                    )
+                    : Text(text),
+          ),
         );
-        break;
       case ButtonType.secondary:
-        button = OutlinedButton(
-          onPressed: isLoading ? null : onPressed,
-          child: buttonContent,
+        return SizedBox(
+          width: width ?? double.infinity,
+          height: height ?? 50,
+          child: OutlinedButton(
+            onPressed: isLoading ? null : onPressed,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.primaryColor,
+              side: BorderSide(color: AppTheme.primaryColor),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child:
+                isLoading
+                    ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: AppTheme.primaryColor,
+                        strokeWidth: 2,
+                      ),
+                    )
+                    : icon != null
+                    ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icon),
+                        const SizedBox(width: 8),
+                        Text(text),
+                      ],
+                    )
+                    : Text(text),
+          ),
         );
-        break;
       case ButtonType.text:
-        button = TextButton(
+        return TextButton(
           onPressed: isLoading ? null : onPressed,
-          child: buttonContent,
+          child:
+              isLoading
+                  ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: AppTheme.primaryColor,
+                      strokeWidth: 2,
+                    ),
+                  )
+                  : icon != null
+                  ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon),
+                      const SizedBox(width: 8),
+                      Text(text),
+                    ],
+                  )
+                  : Text(text),
         );
-        break;
     }
-
-    return isFullWidth
-        ? SizedBox(width: double.infinity, child: button)
-        : button;
   }
 }

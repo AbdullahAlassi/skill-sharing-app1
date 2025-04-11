@@ -23,7 +23,7 @@ class TokenStorage {
     return prefs.getString(_userIdKey);
   }
 
-  // Remove token and user ID (logout)
+  // Clear token and user ID
   static Future<void> clearToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
@@ -33,6 +33,6 @@ class TokenStorage {
   // Check if user is logged in
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
-    return token != null;
+    return token != null && token.isNotEmpty;
   }
 }

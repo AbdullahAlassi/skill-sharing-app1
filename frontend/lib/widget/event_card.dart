@@ -2,143 +2,129 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/event_model.dart';
 import '../theme/app_theme.dart';
+import '../screens/events/event_detail_screen.dart';
 
 class EventCard extends StatelessWidget {
   final Event event;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
-  const EventCard({Key? key, required this.event, required this.onTap})
-    : super(key: key);
+  const EventCard({super.key, required this.event, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+    final dateFormat = DateFormat('MMM d, yyyy • h:mm a');
+
+    return GestureDetector(
+      onTap:
+          onTap ??
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EventDetailScreen(event: event),
+              ),
+            );
+          },
+      child: Container(
+        width: 280,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Event image or placeholder
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
+            // Event header with gradient
+            Container(
+              height: 100,
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  topRight: Radius.circular(12),
+                ),
               ),
-              child:
-                  event.image != null
-                      ? Image.network(
-                        event.image!,
-                        height: 120,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      )
-                      : Container(
-                        height: 120,
-                        width: double.infinity,
-                        color: AppTheme.primaryColor.withOpacity(0.1),
-                        child: Icon(
-                          event.isVirtual ? Icons.videocam : Icons.event,
-                          size: 50,
-                          color: AppTheme.primaryColor.withOpacity(0.5),
-                        ),
-                      ),
+              padding: const EdgeInsets.all(16),
+              child: Center(
+                child: Text(
+                  event.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
+
+            // Event details
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Event date
+                  // Date and time
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.calendar_today,
                         size: 16,
                         color: AppTheme.primaryColor,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        _formatDate(event.date),
-                        style: TextStyle(
-                          color: AppTheme.primaryColor,
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Text(
+                          dateFormat.format(event.date),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppTheme.textSecondaryColor,
+                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
 
-                  // Event title
-                  Text(
-                    event.title,
-                    style: Theme.of(context).textTheme.titleLarge,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Event location
+                  // Location
                   Row(
                     children: [
                       Icon(
                         event.isVirtual ? Icons.videocam : Icons.location_on,
                         size: 16,
-                        color: AppTheme.textSecondaryColor,
+                        color: AppTheme.primaryColor,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           event.location,
-                          style: TextStyle(color: AppTheme.textSecondaryColor),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppTheme.textSecondaryColor,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
 
-                  // Event organizer
-                  if (event.organizerName != null)
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.person,
-                          size: 16,
-                          color: AppTheme.textSecondaryColor,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'By ${event.organizerName}',
-                          style: TextStyle(color: AppTheme.textSecondaryColor),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 16),
-
-                  // Register button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed:
-                          event.isUserRegistered || event.isFull ? null : onTap,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            event.isUserRegistered
-                                ? AppTheme.successColor
-                                : AppTheme.primaryColor,
-                        disabledBackgroundColor: AppTheme.textSecondaryColor,
-                      ),
-                      child: Text(
-                        event.isUserRegistered
-                            ? 'Registered'
-                            : event.isFull
-                            ? 'Event Full'
-                            : 'Register',
-                      ),
-                    ),
+                  // Description
+                  Text(
+                    event.description,
+                    style: const TextStyle(fontSize: 14),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -147,10 +133,5 @@ class EventCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    final formatter = DateFormat('EEE, MMM d, yyyy • h:mm a');
-    return formatter.format(date);
   }
 }

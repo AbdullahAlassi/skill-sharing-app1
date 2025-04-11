@@ -1,499 +1,282 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/event_model.dart';
-import '../../models/user_model.dart';
+import '../../services/event_service.dart';
 import '../../theme/app_theme.dart';
+import '../../providers/user_provider.dart';
 import 'package:frontend/widget/custome_button.dart';
-import 'package:frontend/widget/section_header.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final Event event;
 
-  const EventDetailScreen({Key? key, required this.event}) : super(key: key);
+  const EventDetailScreen({super.key, required this.event});
 
   @override
   _EventDetailScreenState createState() => _EventDetailScreenState();
 }
 
 class _EventDetailScreenState extends State<EventDetailScreen> {
-  bool _isLoading = false;
   bool _isRegistered = false;
-  List<Participant> _participants = [];
+  bool _isLoading = false;
+  bool _isOrganizer = false;
 
   @override
   void initState() {
     super.initState();
-    _loadEventDetails();
+    _checkRegistrationStatus();
   }
 
-  Future<void> _loadEventDetails() async {
-    setState(() {
-      _isLoading = true;
-    });
+  Future<void> _checkRegistrationStatus() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final currentUserId = userProvider.user?.id;
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-
-    // TODO: Replace with actual API call to get event details
     setState(() {
-      _isRegistered = widget.event.isUserRegistered;
-      _participants = widget.event.participants;
-      _isLoading = false;
+      _isRegistered = widget.event.participants.any(
+        (p) => p.userId == currentUserId,
+      );
+      _isOrganizer = widget.event.organizerId == currentUserId;
     });
   }
 
   Future<void> _toggleRegistration() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-
-    // TODO: Replace with actual API call to register/unregister
-    setState(() {
-      _isRegistered = !_isRegistered;
+    try {
+      final eventService = EventService();
 
       if (_isRegistered) {
-        // Add current user to participants
-        _participants.add(
-          Participant(
-            userId: 'currentUserId', // Replace with actual user ID
-            userName: 'Current User', // Replace with actual user name
-            registeredAt: DateTime.now(),
-          ),
+        // Unregister from event
+        final response = await eventService.unregisterFromEvent(
+          widget.event.id,
         );
-      } else {
-        // Remove current user from participants
-        _participants.removeWhere((p) => p.userId == 'currentUserId');
-      }
 
-      _isLoading = false;
-    });
+        if (response.success && mounted) {
+          setState(() {
+            _isRegistered = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Successfully unregistered from event'),
+            ),
+          );
+        }
+      } else {
+        // Register for event
+        final response = await eventService.registerForEvent(widget.event.id);
+
+        if (response.success && mounted) {
+          setState(() {
+            _isRegistered = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Successfully registered for event')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final dateFormat = DateFormat('EEEE, MMMM d, y • h:mm a');
+
     return Scaffold(
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : CustomScrollView(
-                slivers: [
-                  _buildAppBar(),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildEventHeader(),
-                          const SizedBox(height: 24),
-                          _buildEventDetails(),
-                          const SizedBox(height: 24),
-                          _buildOrganizerSection(),
-                          const SizedBox(height: 24),
-                          _buildRelatedSkillsSection(),
-                          const SizedBox(height: 24),
-                          _buildParticipantsSection(),
-                        ],
-                      ),
+      appBar: AppBar(title: const Text('Event Details')),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Event header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(gradient: AppTheme.primaryGradient),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.event.title,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_today,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        dateFormat.format(widget.event.date),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.copyWith(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        widget.event.isVirtual
+                            ? Icons.videocam
+                            : Icons.location_on,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.event.location,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.copyWith(color: Colors.white),
+                      ),
+                    ],
                   ),
                 ],
               ),
-      bottomNavigationBar: _buildBottomBar(),
-    );
-  }
+            ),
 
-  Widget _buildAppBar() {
-    return SliverAppBar(
-      expandedHeight: 200,
-      pinned: true,
-      flexibleSpace: FlexibleSpaceBar(
-        title: Text(
-          widget.event.title,
-          style: const TextStyle(color: Colors.white),
-        ),
-        background:
-            widget.event.image != null
-                ? Image.network(widget.event.image!, fit: BoxFit.cover)
-                : Container(
-                  decoration: const BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                  ),
-                  child: Center(
-                    child: Icon(
-                      widget.event.isVirtual ? Icons.videocam : Icons.event,
-                      size: 80,
-                      color: Colors.white.withOpacity(0.3),
+            // Event details
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Organizer
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const CircleAvatar(child: Icon(Icons.person)),
+                    title: const Text('Organized by'),
+                    subtitle: Text(
+                      widget.event.organizerName ?? 'Unknown organizer',
                     ),
                   ),
-                ),
-      ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.share, color: Colors.white),
-          onPressed: () {
-            // Share event
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.bookmark_border, color: Colors.white),
-          onPressed: () {
-            // Save event
-          },
-        ),
-      ],
-    );
-  }
 
-  Widget _buildEventHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Event date and time
-        Row(
-          children: [
-            Icon(Icons.calendar_today, size: 20, color: AppTheme.primaryColor),
-            const SizedBox(width: 8),
-            Text(
-              _formatDate(widget.event.date),
-              style: TextStyle(
-                color: AppTheme.primaryColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
+                  const Divider(),
 
-        // Event title
-        Text(
-          widget.event.title,
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-        const SizedBox(height: 16),
-
-        // Event location
-        Row(
-          children: [
-            Icon(
-              widget.event.isVirtual ? Icons.videocam : Icons.location_on,
-              size: 20,
-              color: AppTheme.textSecondaryColor,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                widget.event.location,
-                style: TextStyle(
-                  color: AppTheme.textSecondaryColor,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        // Meeting link for virtual events
-        if (widget.event.isVirtual && widget.event.meetingLink != null) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.link, size: 20, color: AppTheme.textSecondaryColor),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  widget.event.meetingLink!,
-                  style: TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontSize: 16,
-                    decoration: TextDecoration.underline,
+                  // Description
+                  const Text(
+                    'About this event',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                ),
-              ),
-            ],
-          ),
-        ],
+                  const SizedBox(height: 8),
+                  Text(widget.event.description),
 
-        // Registration status
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color:
-                _isRegistered
-                    ? AppTheme.successColor.withOpacity(0.1)
-                    : widget.event.isFull
-                    ? AppTheme.errorColor.withOpacity(0.1)
-                    : AppTheme.primaryColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Text(
-            _isRegistered
-                ? 'You are registered'
-                : widget.event.isFull
-                ? 'Event is full'
-                : 'Registration open',
-            style: TextStyle(
-              color:
-                  _isRegistered
-                      ? AppTheme.successColor
-                      : widget.event.isFull
-                      ? AppTheme.errorColor
-                      : AppTheme.primaryColor,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+                  const SizedBox(height: 24),
 
-  Widget _buildEventDetails() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionHeader(title: 'About This Event'),
-        const SizedBox(height: 8),
-        Text(
-          widget.event.description,
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
+                  // Related Skills
+                  if (widget.event.relatedSkills.isNotEmpty) ...[
+                    const Text(
+                      'Related Skills',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children:
+                          widget.event.relatedSkills
+                              .map((skill) => Chip(label: Text(skill)))
+                              .toList(),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
-        // Additional details
-        if (widget.event.maxParticipants != null) ...[
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Icon(Icons.people, size: 20, color: AppTheme.textSecondaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Maximum participants: ${widget.event.maxParticipants}',
-                style: TextStyle(
-                  color: AppTheme.textSecondaryColor,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-        ],
+                  // Registration status
+                  if (widget.event.maxParticipants != null) ...[
+                    const Text(
+                      'Registration Status',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${widget.event.participants.length}/${widget.event.maxParticipants} participants',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
-        // End date if available
-        if (widget.event.endDate != null) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(
-                Icons.event_available,
-                size: 20,
-                color: AppTheme.textSecondaryColor,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Ends on: ${_formatDate(widget.event.endDate!)}',
-                style: TextStyle(
-                  color: AppTheme.textSecondaryColor,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildOrganizerSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionHeader(title: 'Organizer'),
-        const SizedBox(height: 8),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: CircleAvatar(
-            backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
-            child: const Icon(Icons.person, color: AppTheme.primaryColor),
-          ),
-          title: Text(
-            widget.event.organizerName ?? 'Unknown Organizer',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          subtitle: const Text('Event Organizer'),
-          trailing: IconButton(
-            icon: const Icon(Icons.message_outlined),
-            onPressed: () {
-              // Message organizer
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRelatedSkillsSection() {
-    // If no related skills, don't show this section
-    if (widget.event.relatedSkills.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionHeader(title: 'Related Skills'),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children:
-              widget.event.relatedSkills.map((skillId) {
-                // TODO: Replace with actual skill data
-                return Chip(
-                  label: Text('Skill $skillId'),
-                  backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
-                  labelStyle: TextStyle(color: AppTheme.primaryColor),
-                );
-              }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildParticipantsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionHeader(
-          title: 'Participants',
-          subtitle: '${_participants.length} people registered',
-        ),
-        const SizedBox(height: 8),
-        _participants.isEmpty
-            ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Be the first to register!',
-                  style: TextStyle(
-                    color: AppTheme.textSecondaryColor,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            )
-            : ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _participants.length > 5 ? 5 : _participants.length,
-              itemBuilder: (context, index) {
-                final participant = _participants[index];
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
-                    backgroundImage:
-                        participant.userProfilePicture != null
-                            ? NetworkImage(participant.userProfilePicture!)
-                            : null,
-                    child:
-                        participant.userProfilePicture == null
-                            ? const Icon(
-                              Icons.person,
-                              color: AppTheme.primaryColor,
-                            )
-                            : null,
-                  ),
-                  title: Text(
-                    participant.userName ?? 'Anonymous User',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  subtitle: Text(
-                    'Registered on ${_formatShortDate(participant.registeredAt)}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                );
-              },
-            ),
-        if (_participants.length > 5) ...[
-          const SizedBox(height: 8),
-          Center(
-            child: TextButton.icon(
-              onPressed: () {
-                // Show all participants
-              },
-              icon: const Icon(Icons.people),
-              label: Text('See all ${_participants.length} participants'),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildBottomBar() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            // Share button
-            IconButton(
-              icon: const Icon(Icons.share_outlined),
-              onPressed: () {
-                // Share event
-              },
-            ),
-            const SizedBox(width: 8),
-
-            // Save button
-            IconButton(
-              icon: const Icon(Icons.bookmark_border_outlined),
-              onPressed: () {
-                // Save event
-              },
-            ),
-            const SizedBox(width: 16),
-
-            // Register/Unregister button
-            Expanded(
-              child: CustomButton(
-                text: _isRegistered ? 'Cancel Registration' : 'Register Now',
-                onPressed:
-                    widget.event.isFull && !_isRegistered
-                        ? null
-                        : () {
-                          _toggleRegistration(); // Wrap the async call in a synchronous function
-                        },
-                isLoading: _isLoading,
-                type: _isRegistered ? ButtonType.secondary : ButtonType.primary,
+                  // Action buttons
+                  if (!_isOrganizer) ...[
+                    CustomButton(
+                      text:
+                          _isRegistered
+                              ? 'Cancel Registration'
+                              : 'Register for Event',
+                      onPressed:
+                          widget.event.isFull ? () {} : _toggleRegistration,
+                      isLoading: _isLoading,
+                      type:
+                          _isRegistered
+                              ? ButtonType.secondary
+                              : ButtonType.primary,
+                    ),
+                    if (widget.event.isFull && !_isRegistered)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'This event is full',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CustomButton(
+                            text: 'Edit Event',
+                            onPressed: () {
+                              // TODO: Navigate to edit event screen
+                            },
+                            type: ButtonType.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: CustomButton(
+                            text: 'Delete Event',
+                            onPressed: () {
+                              // TODO: Show delete confirmation dialog
+                            },
+                            type: ButtonType.secondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    final formatter = DateFormat('EEEE, MMMM d, yyyy • h:mm a');
-    return formatter.format(date);
-  }
-
-  String _formatShortDate(DateTime date) {
-    final formatter = DateFormat('MMM d, yyyy');
-    return formatter.format(date);
   }
 }

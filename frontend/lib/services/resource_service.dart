@@ -1,8 +1,11 @@
 import '../models/resource_model.dart';
 import 'api_client.dart';
+import 'dart:convert';
+import 'dart:async';
 
 class ResourceService {
   final ApiClient _apiClient;
+  final Duration _timeoutDuration = Duration(seconds: 10);
 
   ResourceService({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
@@ -11,7 +14,7 @@ class ResourceService {
   Future<ApiResponse<List<Resource>>> getResources() async {
     return await _apiClient.get<List<Resource>>(
       'resources',
-      (json) => List<Resource>.from(json.map((x) => Resource.fromJson(x))),
+      (json, _) => (json as List).map((x) => Resource.fromJson(x)).toList(),
     );
   }
 
@@ -19,7 +22,7 @@ class ResourceService {
   Future<ApiResponse<Resource>> getResourceById(String id) async {
     return await _apiClient.get<Resource>(
       'resources/$id',
-      (json) => Resource.fromJson(json),
+      (json, _) => Resource.fromJson(json),
     );
   }
 
@@ -37,7 +40,7 @@ class ResourceService {
       'link': link,
       'type': type,
       'skillId': skillId,
-    }, (json) => Resource.fromJson(json));
+    }, (json, _) => Resource.fromJson(json));
   }
 
   // Update a resource
@@ -53,14 +56,14 @@ class ResourceService {
       'description': description,
       'link': link,
       'type': type,
-    }, (json) => Resource.fromJson(json));
+    }, (json, _) => Resource.fromJson(json));
   }
 
   // Delete a resource
   Future<ApiResponse<Map<String, dynamic>>> deleteResource(String id) async {
     return await _apiClient.delete<Map<String, dynamic>>(
       'resources/$id',
-      (json) => json,
+      (json, _) => json as Map<String, dynamic>,
     );
   }
 
@@ -68,10 +71,36 @@ class ResourceService {
   Future<ApiResponse<List<Resource>>> getResourcesBySkill(
     String skillId,
   ) async {
-    return await _apiClient.get<List<Resource>>(
-      'resources/skill/$skillId',
-      (json) => List<Resource>.from(json.map((x) => Resource.fromJson(x))),
-    );
+    try {
+      final response = await _apiClient
+          .get<List<Resource>>('resources/skill/$skillId', (json, _) {
+            if (json is String) {
+              final parsedJson = jsonDecode(json);
+              if (parsedJson is List) {
+                return parsedJson.map((x) => Resource.fromJson(x)).toList();
+              }
+            } else if (json is List) {
+              return json.map((x) => Resource.fromJson(x)).toList();
+            }
+            return [];
+          })
+          .timeout(_timeoutDuration);
+
+      return response;
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        error: 'Request timed out. Please check your internet connection.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      print('Error in getResourcesBySkill: $e');
+      return ApiResponse(
+        success: false,
+        error: 'Failed to load resources: ${e.toString()}',
+        statusCode: 500,
+      );
+    }
   }
 
   // Add a review to a resource
@@ -83,7 +112,7 @@ class ResourceService {
     return await _apiClient.post<List<Review>>(
       'resources/$id/review',
       {'rating': rating, 'comment': comment},
-      (json) => List<Review>.from(json.map((x) => Review.fromJson(x))),
+      (json, _) => (json as List).map((x) => Review.fromJson(x)).toList(),
     );
   }
 }

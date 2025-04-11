@@ -10,6 +10,15 @@ const router = express.Router()
 // @access  Public
 router.get("/", eventController.getEvents)
 
+// @route   GET /api/events/:id
+// @desc    Get event by ID
+// @access  Public
+router.get("/:id", eventController.getEventById)
+
+// @route   GET /api/events/user/events
+// @desc    Get events user is registered for
+// @access  Private
+router.get("/user/events", auth, eventController.getUserEvents)
 
 // @route   POST /api/events
 // @desc    Create a new event
@@ -18,11 +27,10 @@ router.post(
   "/",
   [
     auth,
-    [
-      check("title", "Title is required").not().isEmpty(),
-      check("description", "Description is required").not().isEmpty(),
-      check("date", "Date is required").not().isEmpty(),
-    ],
+    check("title", "Title is required").not().isEmpty(),
+    check("description", "Description is required").not().isEmpty(),
+    check("date", "Date is required").not().isEmpty(),
+    check("location", "Location is required").not().isEmpty(),
   ],
   eventController.createEvent,
 )
@@ -34,11 +42,9 @@ router.put(
   "/:id",
   [
     auth,
-    [
-      check("title", "Title cannot be empty if provided").optional().not().isEmpty(),
-      check("description", "Description cannot be empty if provided").optional().not().isEmpty(),
-      check("date", "Date cannot be empty if provided").optional().not().isEmpty(),
-    ],
+    check("title", "Title cannot be empty if provided").optional().not().isEmpty(),
+    check("description", "Description cannot be empty if provided").optional().not().isEmpty(),
+    check("date", "Date cannot be empty if provided").optional().not().isEmpty(),
   ],
   eventController.updateEvent,
 )
@@ -57,16 +63,6 @@ router.post("/:id/register", auth, eventController.registerForEvent)
 // @desc    Unregister from an event
 // @access  Private
 router.delete("/:id/register", auth, eventController.unregisterFromEvent)
-
-// @route   GET /api/events/user
-// @desc    Get events user is registered for
-// @access  Private
-router.get("/user", auth, eventController.getUserEvents)
-
-// @route   GET /api/events/:id
-// @desc    Get event by ID
-// @access  Public
-router.get("/:id", eventController.getEventById)
 
 module.exports = router
 

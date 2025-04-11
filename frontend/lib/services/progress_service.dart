@@ -11,7 +11,7 @@ class ProgressService {
   Future<ApiResponse<List<Progress>>> getUserProgress() async {
     return await _apiClient.get<List<Progress>>(
       'progress',
-      (json) => List<Progress>.from(json.map((x) => Progress.fromJson(x))),
+      (json, _) => (json as List).map((x) => Progress.fromJson(x)).toList(),
     );
   }
 
@@ -19,7 +19,7 @@ class ProgressService {
   Future<ApiResponse<Progress>> getProgressById(String id) async {
     return await _apiClient.get<Progress>(
       'progress/$id',
-      (json) => Progress.fromJson(json),
+      (json, _) => Progress.fromJson(json),
     );
   }
 
@@ -35,7 +35,7 @@ class ProgressService {
       'goal': goal,
       'targetDate': targetDate?.toIso8601String(),
       'milestones': milestones,
-    }, (json) => Progress.fromJson(json));
+    }, (json, _) => Progress.fromJson(json));
   }
 
   // Update progress
@@ -49,14 +49,14 @@ class ProgressService {
       if (goal != null) 'goal': goal,
       if (targetDate != null) 'targetDate': targetDate.toIso8601String(),
       if (progress != null) 'progress': progress,
-    }, (json) => Progress.fromJson(json));
+    }, (json, _) => Progress.fromJson(json));
   }
 
   // Delete progress
   Future<ApiResponse<Map<String, dynamic>>> deleteProgress(String id) async {
     return await _apiClient.delete<Map<String, dynamic>>(
       'progress/$id',
-      (json) => json,
+      (json, _) => json as Map<String, dynamic>,
     );
   }
 
@@ -69,7 +69,7 @@ class ProgressService {
     return await _apiClient.post<List<Milestone>>(
       'progress/$id/milestone',
       {'title': title, 'description': description},
-      (json) => List<Milestone>.from(json.map((x) => Milestone.fromJson(x))),
+      (json, _) => (json as List).map((x) => Milestone.fromJson(x)).toList(),
     );
   }
 
@@ -88,7 +88,7 @@ class ProgressService {
         if (description != null) 'description': description,
         if (completed != null) 'completed': completed,
       },
-      (json) => List<Milestone>.from(json.map((x) => Milestone.fromJson(x))),
+      (json, _) => (json as List).map((x) => Milestone.fromJson(x)).toList(),
     );
   }
 }

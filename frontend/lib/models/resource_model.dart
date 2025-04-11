@@ -1,4 +1,4 @@
-import 'skill_model.dart';
+import 'package:frontend/models/skill_model.dart';
 
 class Resource {
   final String id;
@@ -8,8 +8,7 @@ class Resource {
   final String type;
   final Skill skill;
   final String addedBy;
-  final double rating;
-  final List<Review> reviews;
+  final List<Review>? reviews;
   final DateTime createdAt;
 
   Resource({
@@ -20,28 +19,34 @@ class Resource {
     required this.type,
     required this.skill,
     required this.addedBy,
-    this.rating = 0,
-    this.reviews = const [],
+    this.reviews,
     required this.createdAt,
   });
 
   factory Resource.fromJson(Map<String, dynamic> json) {
     return Resource(
-      id: json['_id'],
-      title: json['title'],
-      description: json['description'],
-      link: json['link'],
-      type: json['type'],
-      skill: Skill.fromJson(json['skill']),
-      addedBy:
-          json['addedBy'] is String ? json['addedBy'] : json['addedBy']['_id'],
-      rating: json['rating']?.toDouble() ?? 0,
+      id: json['_id'] ?? json['id'] ?? '',
+      title: json['title'] ?? '',
+      description: json['description'] ?? '',
+      link: json['link'] ?? '',
+      type: json['type'] ?? '',
+      skill:
+          json['skill'] is Map
+              ? Skill.fromJson(json['skill'])
+              : Skill(
+                id: json['skill'] ?? '',
+                name: '',
+                category: '',
+                description: '',
+                createdAt: DateTime.now(),
+              ),
+      addedBy: json['addedBy'] ?? '',
       reviews:
           json['reviews'] != null
               ? List<Review>.from(
                 json['reviews'].map((x) => Review.fromJson(x)),
               )
-              : [],
+              : null,
       createdAt:
           json['createdAt'] != null
               ? DateTime.parse(json['createdAt'])
@@ -51,45 +56,58 @@ class Resource {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'title': title,
       'description': description,
       'link': link,
       'type': type,
-      'skillId': skill.id,
+      'skill': skill.id,
+      'addedBy': addedBy,
+      'reviews': reviews?.map((x) => x.toJson()).toList(),
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 }
 
 class Review {
   final String id;
-  final String userId;
-  final String? userName;
-  final String? userProfilePicture;
   final int rating;
-  final String? comment;
-  final DateTime date;
+  final String comment;
+  final String userId;
+  final String userName;
+  final DateTime createdAt;
 
   Review({
     required this.id,
-    required this.userId,
-    this.userName,
-    this.userProfilePicture,
     required this.rating,
-    this.comment,
-    required this.date,
+    required this.comment,
+    required this.userId,
+    required this.userName,
+    required this.createdAt,
   });
 
   factory Review.fromJson(Map<String, dynamic> json) {
     return Review(
-      id: json['_id'],
-      userId: json['user'] is String ? json['user'] : json['user']['_id'],
-      userName: json['user'] is Map ? json['user']['name'] : null,
-      userProfilePicture:
-          json['user'] is Map ? json['user']['profilePicture'] : null,
-      rating: json['rating'],
-      comment: json['comment'],
-      date:
-          json['date'] != null ? DateTime.parse(json['date']) : DateTime.now(),
+      id: json['_id'] ?? json['id'] ?? '',
+      rating: json['rating'] ?? 0,
+      comment: json['comment'] ?? '',
+      userId: json['userId'] ?? '',
+      userName: json['userName'] ?? '',
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'rating': rating,
+      'comment': comment,
+      'userId': userId,
+      'userName': userName,
+      'createdAt': createdAt.toIso8601String(),
+    };
   }
 }

@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import '../../models/skill_model.dart';
+import '../../services/skill_service.dart';
 import '../../theme/app_theme.dart';
 import 'package:frontend/widget/skill_card.dart';
 import 'skill_detail_screen.dart';
+import 'create_skill_screen.dart';
 
 class SkillsScreen extends StatefulWidget {
-  const SkillsScreen({Key? key}) : super(key: key);
+  const SkillsScreen({super.key});
 
   @override
-  _SkillsScreenState createState() => _SkillsScreenState();
+  State<SkillsScreen> createState() => _SkillsScreenState();
 }
 
 class _SkillsScreenState extends State<SkillsScreen> {
-  bool _isLoading = true;
   List<Skill> _skills = [];
   List<String> _categories = [];
   String? _selectedCategory;
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -24,63 +27,45 @@ class _SkillsScreenState extends State<SkillsScreen> {
   }
 
   Future<void> _loadSkills() async {
+    print("Loading skills...");
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final skillService = SkillService();
+      final response = await skillService.getSkills();
+      print(
+        "Skills API response: ${response.success}, data length: ${response.data?.length ?? 0}",
+      );
 
-    // TODO: Replace with actual API calls
-    setState(() {
-      _skills = [
-        Skill(
-          id: '1',
-          name: 'Flutter Development',
-          category: 'Programming',
-          description: 'Learn to build beautiful cross-platform apps',
-          createdAt: DateTime.now(),
-        ),
-        Skill(
-          id: '2',
-          name: 'UI/UX Design',
-          category: 'Design',
-          description: 'Create stunning user interfaces and experiences',
-          createdAt: DateTime.now(),
-        ),
-        Skill(
-          id: '3',
-          name: 'Digital Marketing',
-          category: 'Marketing',
-          description: 'Master the art of online marketing',
-          createdAt: DateTime.now(),
-        ),
-        Skill(
-          id: '4',
-          name: 'Photography',
-          category: 'Art',
-          description: 'Capture beautiful moments with your camera',
-          createdAt: DateTime.now(),
-        ),
-        Skill(
-          id: '5',
-          name: 'React Native',
-          category: 'Programming',
-          description: 'Build native mobile apps using JavaScript',
-          createdAt: DateTime.now(),
-        ),
-        Skill(
-          id: '6',
-          name: 'Graphic Design',
-          category: 'Design',
-          description: 'Create visual content to communicate messages',
-          createdAt: DateTime.now(),
-        ),
-      ];
-
-      _categories = _skills.map((skill) => skill.category).toSet().toList();
-      _isLoading = false;
-    });
+      if (response.success && response.data != null) {
+        setState(() {
+          _skills = response.data!;
+          // Extract unique categories
+          _categories = _skills.map((skill) => skill.category).toSet().toList();
+          _isLoading = false;
+        });
+        print("Loaded ${_skills.length} skills");
+      } else {
+        setState(() {
+          _skills = [];
+          _categories = [];
+          _errorMessage = response.error;
+          _isLoading = false;
+        });
+        print("No skills loaded from API: ${response.error}");
+      }
+    } catch (e) {
+      print("Error loading skills: $e");
+      setState(() {
+        _skills = [];
+        _categories = [];
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
   }
 
   List<Skill> get _filteredSkills {
@@ -97,14 +82,7 @@ class _SkillsScreenState extends State<SkillsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Skills'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // Navigate to search screen
-            },
-          ),
-        ],
+        backgroundColor: AppTheme.primaryColor,
       ),
       body:
           _isLoading
@@ -113,6 +91,34 @@ class _SkillsScreenState extends State<SkillsScreen> {
                 onRefresh: _loadSkills,
                 child: Column(
                   children: [
+                    // Error message if any
+                    if (_errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.red,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Error loading skills: $_errorMessage',
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
                     // Categories filter
                     if (_categories.isNotEmpty)
                       Padding(
@@ -185,7 +191,51 @@ class _SkillsScreenState extends State<SkillsScreen> {
                     Expanded(
                       child:
                           _filteredSkills.isEmpty
-                              ? const Center(child: Text('No skills found'))
+                              ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.school_outlined,
+                                      size: 64,
+                                      color: Colors.grey,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _selectedCategory != null
+                                          ? 'No skills found in $_selectedCategory category'
+                                          : 'No skills found',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (context) =>
+                                                    const CreateSkillScreen(),
+                                          ),
+                                        ).then((result) {
+                                          if (result == true) {
+                                            _loadSkills();
+                                          }
+                                        });
+                                      },
+                                      icon: const Icon(Icons.add),
+                                      label: const Text('Create a Skill'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppTheme.primaryColor,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
                               : GridView.builder(
                                 padding: const EdgeInsets.all(16.0),
                                 gridDelegate:
@@ -209,7 +259,7 @@ class _SkillsScreenState extends State<SkillsScreen> {
                                                 skill: skill,
                                               ),
                                         ),
-                                      );
+                                      ).then((_) => _loadSkills());
                                     },
                                   );
                                 },
@@ -220,7 +270,16 @@ class _SkillsScreenState extends State<SkillsScreen> {
               ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Navigate to add skill screen
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const CreateSkillScreen()),
+          ).then((result) {
+            print("Returned from CreateSkillScreen with result: $result");
+            // Reload skills if a new one was created
+            if (result == true) {
+              _loadSkills();
+            }
+          });
         },
         backgroundColor: AppTheme.primaryColor,
         child: const Icon(Icons.add),

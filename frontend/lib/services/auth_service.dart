@@ -7,9 +7,11 @@ import 'api_client.dart';
 
 class AuthService {
   final ApiClient _apiClient;
+  final String baseUrl;
 
   AuthService({ApiClient? apiClient, required String baseUrl})
-    : _apiClient = apiClient ?? ApiClient();
+    : _apiClient = apiClient ?? ApiClient(),
+      baseUrl = baseUrl;
 
   // Register a new user
   Future<ApiResponse<Map<String, dynamic>>> register(
@@ -29,12 +31,20 @@ class AuthService {
       if (response.statusCode == 201) {
         // Save token and user ID
         await TokenStorage.saveToken(data['token'], data['user']['id']);
-        return ApiResponse.success(data);
+        return ApiResponse(
+          success: true,
+          data: data,
+          statusCode: response.statusCode,
+        );
       } else {
-        return ApiResponse.error(data['message'] ?? 'Registration failed');
+        return ApiResponse(
+          success: false,
+          error: data['message'] ?? 'Registration failed',
+          statusCode: response.statusCode,
+        );
       }
     } catch (e) {
-      return ApiResponse.error(e.toString());
+      return ApiResponse(success: false, error: e.toString(), statusCode: 0);
     }
   }
 
@@ -55,21 +65,62 @@ class AuthService {
       if (response.statusCode == 200) {
         // Save token and user ID
         await TokenStorage.saveToken(data['token'], data['user']['id']);
-        return ApiResponse.success(data);
+        return ApiResponse(
+          success: true,
+          data: data,
+          statusCode: response.statusCode,
+        );
       } else {
-        return ApiResponse.error(data['message'] ?? 'Login failed');
+        return ApiResponse(
+          success: false,
+          error: data['message'] ?? 'Login failed',
+          statusCode: response.statusCode,
+        );
       }
     } catch (e) {
-      return ApiResponse.error(e.toString());
+      return ApiResponse(success: false, error: e.toString(), statusCode: 0);
     }
   }
 
   // Get current user
   Future<ApiResponse<User>> getCurrentUser() async {
-    return await _apiClient.get<User>(
-      'auth/user',
-      (json) => User.fromJson(json),
-    );
+    try {
+      final token = await TokenStorage.getToken();
+      if (token == null) {
+        return ApiResponse(
+          success: false,
+          error: 'No authentication token found',
+          statusCode: 401,
+        );
+      }
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.apiBaseUrl}/auth/user'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final user = User.fromJson(data);
+        return ApiResponse(
+          success: true,
+          data: user,
+          statusCode: response.statusCode,
+        );
+      } else {
+        final data = jsonDecode(response.body);
+        return ApiResponse(
+          success: false,
+          error: data['message'] ?? 'Failed to get user data',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(success: false, error: e.toString(), statusCode: 0);
+    }
   }
 
   // Logout

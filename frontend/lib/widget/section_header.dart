@@ -3,37 +3,30 @@ import '../theme/app_theme.dart';
 
 class SectionHeader extends StatelessWidget {
   final String title;
-  final String? subtitle;
-  final VoidCallback? onSeeAllPressed;
+  final VoidCallback? onViewAll;
 
-  const SectionHeader({
-    Key? key,
-    required this.title,
-    this.subtitle,
-    this.onSeeAllPressed,
-  }) : super(key: key);
+  const SectionHeader({super.key, required this.title, this.onViewAll});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.headlineSmall),
-            if (onSeeAllPressed != null)
-              TextButton(
-                onPressed: onSeeAllPressed,
-                child: const Text('See All'),
-              ),
-          ],
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
-        if (subtitle != null)
-          Text(
-            subtitle!,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.textSecondaryColor,
+        if (onViewAll != null)
+          TextButton(
+            onPressed: onViewAll,
+            child: Text(
+              'View All',
+              style: TextStyle(
+                color: AppTheme.primaryColor,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
       ],

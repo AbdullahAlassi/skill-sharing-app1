@@ -1,72 +1,62 @@
 import 'package:flutter/material.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
+import '../../theme/app_theme.dart';
 import 'package:frontend/widget/event_card.dart';
+import 'event_detail_screen.dart';
+import 'create_event_screen.dart';
 
 class EventsScreen extends StatefulWidget {
-  const EventsScreen({Key? key}) : super(key: key);
+  const EventsScreen({super.key});
 
   @override
   _EventsScreenState createState() => _EventsScreenState();
 }
 
-class _EventsScreenState extends State<EventsScreen>
-    with SingleTickerProviderStateMixin {
-  final EventService _eventService = EventService();
-  List<Event> _allEvents = [];
-  List<Event> _userEvents = [];
-  bool _isLoading = true;
-  String _errorMessage = '';
-  late TabController _tabController;
+class _EventsScreenState extends State<EventsScreen> {
+  List<Event> _events = [];
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadEvents();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadEvents() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
-      _errorMessage = '';
+      _errorMessage = null;
     });
 
     try {
-      // Load all events
-      final allEventsResponse = await _eventService.getEvents();
+      final eventService = EventService();
+      final response = await eventService.getEvents();
 
-      if (allEventsResponse.success) {
+      if (!mounted) return;
+
+      if (response.success && response.data != null) {
         setState(() {
-          _allEvents = allEventsResponse.data ?? [];
+          _events = response.data!;
+          _isLoading = false;
         });
       } else {
         setState(() {
-          _errorMessage = allEventsResponse.error ?? 'Failed to load events';
-        });
-      }
-
-      // Load user events
-      final userEventsResponse = await _eventService.getUserEvents();
-
-      if (userEventsResponse.success) {
-        setState(() {
-          _userEvents = userEventsResponse.data ?? [];
+          _events = [];
+          _isLoading = false;
+          _errorMessage = response.error ?? 'Failed to load events';
         });
       }
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
-        _errorMessage = e.toString();
-      });
-    } finally {
-      setState(() {
+        _events = [];
         _isLoading = false;
+        _errorMessage = 'Error: ${e.toString()}';
       });
     }
   }
@@ -76,55 +66,82 @@ class _EventsScreenState extends State<EventsScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Events'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [Tab(text: 'All Events'), Tab(text: 'My Events')],
-        ),
+        backgroundColor: AppTheme.primaryColor,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CreateEventScreen(),
+                ),
+              );
+              if (result == true) {
+                _loadEvents();
+              }
+            },
+          ),
+        ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _errorMessage.isNotEmpty
-              ? Center(child: Text(_errorMessage))
-              : TabBarView(
-                controller: _tabController,
-                children: [
-                  // All events tab
-                  _buildEventsList(_allEvents),
-
-                  // My events tab
-                  _buildEventsList(_userEvents),
-                ],
-              ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Navigate to create event screen
-        },
-        child: const Icon(Icons.add),
-      ),
+      body: _buildBody(),
     );
   }
 
-  Widget _buildEventsList(List<Event> events) {
-    if (events.isEmpty) {
-      return const Center(child: Text('No events found'));
+  Widget _buildBody() {
+    if (_isLoading && _events.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null && _events.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _errorMessage!,
+              style: const TextStyle(color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: _loadEvents, child: const Text('Retry')),
+          ],
+        ),
+      );
     }
 
     return RefreshIndicator(
       onRefresh: _loadEvents,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(8.0),
-        itemCount: events.length,
-        itemBuilder: (context, index) {
-          final event = events[index];
-          return EventCard(
-            event: event,
-            onTap: () {
-              Navigator.pushNamed(context, '/event-detail', arguments: event);
-            },
-          );
-        },
-      ),
+      child:
+          _events.isEmpty
+              ? const Center(
+                child: Text(
+                  'No events available',
+                  style: TextStyle(fontSize: 16),
+                ),
+              )
+              : ListView.builder(
+                padding: const EdgeInsets.all(16.0),
+                itemCount: _events.length,
+                itemBuilder: (context, index) {
+                  final event = _events[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: EventCard(
+                      event: event,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => EventDetailScreen(event: event),
+                          ),
+                        ).then((_) => _loadEvents());
+                      },
+                    ),
+                  );
+                },
+              ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
+import '../config/app_config.dart';
 
 class UserProvider with ChangeNotifier {
   User? _user;
@@ -13,7 +14,7 @@ class UserProvider with ChangeNotifier {
   String? get error => _error;
   bool get isLoggedIn => _user != null;
 
-  final AuthService _authService = AuthService(baseUrl: '');
+  final AuthService _authService = AuthService(baseUrl: AppConfig.apiBaseUrl);
   final ProfileService _profileService = ProfileService();
 
   // Load user data
@@ -74,6 +75,34 @@ class UserProvider with ChangeNotifier {
 
     try {
       final response = await _profileService.addSkill(skillId, proficiency);
+
+      if (response.success && _user != null) {
+        // Reload user to get updated skills
+        await loadUser();
+        return true;
+      } else {
+        _error = response.error;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Remove skill from user profile
+  Future<bool> removeSkill(String skillId) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final response = await _profileService.removeSkill(skillId);
 
       if (response.success && _user != null) {
         // Reload user to get updated skills

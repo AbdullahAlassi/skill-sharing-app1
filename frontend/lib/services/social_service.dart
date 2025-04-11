@@ -12,7 +12,7 @@ class SocialService {
   Future<ApiResponse<List<Group>>> getGroups() async {
     return await _apiClient.get<List<Group>>(
       'social/groups',
-      (json) => List<Group>.from(json.map((x) => Group.fromJson(x))),
+      (json, _) => (json as List).map((x) => Group.fromJson(x)).toList(),
     );
   }
 
@@ -20,7 +20,7 @@ class SocialService {
   Future<ApiResponse<Group>> getGroupById(String id) async {
     return await _apiClient.get<Group>(
       'social/groups/$id',
-      (json) => Group.fromJson(json),
+      (json, _) => Group.fromJson(json),
     );
   }
 
@@ -36,7 +36,7 @@ class SocialService {
       'description': description,
       'relatedSkills': relatedSkills,
       'isPublic': isPublic,
-    }, (json) => Group.fromJson(json));
+    }, (json, _) => Group.fromJson(json));
   }
 
   // Update a group
@@ -52,7 +52,7 @@ class SocialService {
       if (description != null) 'description': description,
       if (relatedSkills != null) 'relatedSkills': relatedSkills,
       if (isPublic != null) 'isPublic': isPublic,
-    }, (json) => Group.fromJson(json));
+    }, (json, _) => Group.fromJson(json));
   }
 
   // Join a group
@@ -60,7 +60,7 @@ class SocialService {
     return await _apiClient.post<Map<String, dynamic>>(
       'social/groups/$id/join',
       {},
-      (json) => json,
+      (json, _) => json as Map<String, dynamic>,
     );
   }
 
@@ -68,7 +68,7 @@ class SocialService {
   Future<ApiResponse<Map<String, dynamic>>> leaveGroup(String id) async {
     return await _apiClient.delete<Map<String, dynamic>>(
       'social/groups/$id/leave',
-      (json) => json,
+      (json, _) => json as Map<String, dynamic>,
     );
   }
 
@@ -78,7 +78,7 @@ class SocialService {
   ) async {
     return await _apiClient.get<List<Discussion>>(
       'social/discussions/group/$groupId',
-      (json) => List<Discussion>.from(json.map((x) => Discussion.fromJson(x))),
+      (json, _) => (json as List).map((x) => Discussion.fromJson(x)).toList(),
     );
   }
 
@@ -92,7 +92,7 @@ class SocialService {
       'groupId': groupId,
       'title': title,
       'content': content,
-    }, (json) => Discussion.fromJson(json));
+    }, (json, _) => Discussion.fromJson(json));
   }
 
   // Add a reply to a discussion
@@ -103,7 +103,7 @@ class SocialService {
     return await _apiClient.post<List<Reply>>(
       'social/discussions/$discussionId/reply',
       {'content': content},
-      (json) => List<Reply>.from(json.map((x) => Reply.fromJson(x))),
+      (json, _) => (json as List).map((x) => Reply.fromJson(x)).toList(),
     );
   }
 
@@ -111,7 +111,7 @@ class SocialService {
   Future<ApiResponse<List<User>>> getFriends() async {
     return await _apiClient.get<List<User>>(
       'social/friends',
-      (json) => List<User>.from(json.map((x) => User.fromJson(x))),
+      (json, _) => (json as List).map((x) => User.fromJson(x)).toList(),
     );
   }
 
@@ -120,7 +120,7 @@ class SocialService {
     return await _apiClient.post<Map<String, dynamic>>(
       'social/friends/$userId',
       {},
-      (json) => json,
+      (json, _) => json as Map<String, dynamic>,
     );
   }
 
@@ -128,7 +128,7 @@ class SocialService {
   Future<ApiResponse<Map<String, dynamic>>> removeFriend(String userId) async {
     return await _apiClient.delete<Map<String, dynamic>>(
       'social/friends/$userId',
-      (json) => json,
+      (json, _) => json as Map<String, dynamic>,
     );
   }
 }
