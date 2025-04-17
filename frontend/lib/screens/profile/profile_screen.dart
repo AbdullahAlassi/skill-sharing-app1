@@ -4,6 +4,7 @@ import '../../models/skill_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/user_provider.dart';
 import '../../services/profile_service.dart';
+import '../../services/skill_service.dart';
 import '../../theme/app_theme.dart';
 import 'package:frontend/widget/custome_button.dart';
 import 'package:frontend/widget/section_header.dart';
@@ -25,22 +26,19 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _isLoading = true;
   User? _user;
   List<Skill> _userSkills = [];
-  List<Skill> _userInterests = [];
+  List<String> _favoriteCategories = [];
+  List<Skill> _createdSkills = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    // Don't call _loadUserData() here
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Call _loadUserData() here instead
-    if (_isLoading) {
-      _loadUserData();
-    }
+    _loadUserData();
   }
 
   Future<void> _loadUserData() async {
@@ -51,35 +49,68 @@ class _ProfileScreenState extends State<ProfileScreen>
     });
 
     try {
-      // Get user data from provider
       final userProvider = Provider.of<UserProvider>(context, listen: false);
+      await userProvider.loadUser();
 
-      // Use Future.microtask to schedule this after the current build phase
-      Future.microtask(() async {
-        await userProvider.loadUser();
-
-        if (!mounted) return;
-
-        final user = userProvider.user;
-
-        setState(() {
-          _user = user;
-
-          // Extract user skills and interests
-          if (user != null) {
-            _userSkills = user.skills.map((s) => s.skill).toList();
-            _userInterests = user.interests ?? [];
-          } else {
-            _userSkills = [];
-            _userInterests = [];
-          }
-
-          _isLoading = false;
-        });
-      });
-    } catch (e) {
       if (!mounted) return;
 
+      final user = userProvider.user;
+
+      setState(() {
+        _user = user;
+        if (user != null) {
+          _userSkills = [];
+          _favoriteCategories = user.favoriteCategories;
+          _createdSkills = []; // We'll fetch these skills
+        } else {
+          _userSkills = [];
+          _favoriteCategories = [];
+          _createdSkills = [];
+        }
+        _isLoading = false;
+      });
+
+      // Fetch user's skills
+      if (user != null) {
+        final skillService = SkillService();
+        final skills = <Skill>[];
+
+        // Fetch skills from user.skills array
+        for (final skillId in user.skills) {
+          final response = await skillService.getSkillById(skillId);
+          if (response.success && response.data != null) {
+            skills.add(response.data!);
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _userSkills = skills;
+          });
+        }
+      }
+
+      // Fetch created skills
+      if (user != null && user.createdSkills.isNotEmpty) {
+        final skillService = SkillService();
+        final skills = <Skill>[];
+
+        for (final skillId in user.createdSkills) {
+          final response = await skillService.getSkillById(skillId);
+          if (response.success && response.data != null) {
+            skills.add(response.data!);
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _createdSkills = skills;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -105,183 +136,180 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _user == null
-              ? const Center(child: Text('Failed to load user data.'))
-              : Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // User info section
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 40,
-                          backgroundColor: AppTheme.primaryColor.withOpacity(
-                            0.2,
-                          ),
-                          backgroundImage:
-                              _user!.profilePicture != null &&
-                                      _user!.profilePicture!.isNotEmpty
-                                  ? NetworkImage(_user!.profilePicture!)
-                                  : null,
-                          child:
-                              _user!.profilePicture != null &&
-                                      _user!.profilePicture!.isNotEmpty
-                                  ? null
-                                  : Icon(
-                                    Icons.person,
-                                    size: 40,
-                                    color: AppTheme.primaryColor,
-                                  ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _user!.name,
-                                style:
-                                    Theme.of(context).textTheme.headlineSmall,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _user!.email,
-                                style: Theme.of(
-                                  context,
-                                ).textTheme.bodyMedium?.copyWith(
-                                  color: AppTheme.textSecondaryColor,
-                                ),
-                              ),
-                              if (_user!.bio != null &&
-                                  _user!.bio!.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  _user!.bio!,
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Tabs
-                    TabBar(
-                      controller: _tabController,
-                      labelColor: AppTheme.primaryColor,
-                      unselectedLabelColor: AppTheme.textSecondaryColor,
-                      indicatorColor: AppTheme.primaryColor,
-                      tabs: const [
-                        Tab(text: 'My Skills'),
-                        Tab(text: 'Interests'),
-                      ],
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _user == null
+              ? const Center(child: Text('User not found'))
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Profile header
+                      Row(
                         children: [
-                          // Skills Tab
-                          _userSkills.isEmpty
-                              ? const Center(
-                                child: Text('No skills added yet.'),
-                              )
-                              : GridView.builder(
-                                padding: const EdgeInsets.only(top: 16),
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 2,
-                                      childAspectRatio: 0.75,
-                                      crossAxisSpacing: 16,
-                                      mainAxisSpacing: 16,
-                                    ),
-                                itemCount: _userSkills.length,
-                                itemBuilder: (context, index) {
-                                  return SkillCard(
-                                    skill: _userSkills[index],
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder:
-                                              (context) => SkillDetailScreen(
-                                                skill: _userSkills[index],
-                                              ),
-                                        ),
-                                      ).then((_) => _loadUserData());
-                                    },
-                                  );
-                                },
-                              ),
-
-                          // Interests Tab
-                          _userInterests.isEmpty
-                              ? const Center(
-                                child: Text('No interests added yet.'),
-                              )
-                              : GridView.builder(
-                                padding: const EdgeInsets.only(top: 16),
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 2,
-                                      childAspectRatio: 0.75,
-                                      crossAxisSpacing: 16,
-                                      mainAxisSpacing: 16,
-                                    ),
-                                itemCount: _userInterests.length,
-                                itemBuilder: (context, index) {
-                                  return SkillCard(
-                                    skill: _userInterests[index],
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder:
-                                              (context) => SkillDetailScreen(
-                                                skill: _userInterests[index],
-                                              ),
-                                        ),
-                                      ).then((_) => _loadUserData());
-                                    },
-                                  );
-                                },
-                              ),
+                          CircleAvatar(
+                            radius: 40,
+                            backgroundImage: _user!.profilePicture != null &&
+                                    _user!.profilePicture!.isNotEmpty
+                                ? NetworkImage(_user!.profilePicture!)
+                                : null,
+                            child: _user!.profilePicture == null ||
+                                    _user!.profilePicture!.isEmpty
+                                ? const Icon(Icons.person, size: 40)
+                                : null,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _user!.name,
+                                  style:
+                                      Theme.of(context).textTheme.headlineSmall,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _user!.email,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: AppTheme.textSecondaryColor,
+                                      ),
+                                ),
+                                if (_user!.bio != null &&
+                                    _user!.bio!.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _user!.bio!,
+                                    style:
+                                        Theme.of(context).textTheme.bodyMedium,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    CustomButton(
-                      text: 'Logout',
-                      onPressed: () async {
-                        final userProvider = Provider.of<UserProvider>(
-                          context,
-                          listen: false,
-                        );
-                        await userProvider.logout();
-                        // Navigate to login screen
-                        if (mounted) {
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (context) => const LoginScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        }
-                      },
-                      type: ButtonType.secondary,
-                      icon: Icons.logout,
-                    ),
-                  ],
+                      const SizedBox(height: 24),
+
+                      // Tabs
+                      TabBar(
+                        controller: _tabController,
+                        labelColor: AppTheme.primaryColor,
+                        unselectedLabelColor: AppTheme.textSecondaryColor,
+                        indicatorColor: AppTheme.primaryColor,
+                        tabs: const [
+                          Tab(text: 'My Skills'),
+                          Tab(text: 'Favorite Categories'),
+                          Tab(text: 'Created Skills'),
+                        ],
+                      ),
+                      SizedBox(
+                        height: 500,
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            // Skills Tab
+                            _userSkills.isEmpty
+                                ? const Center(
+                                    child: Text('No skills added yet.'),
+                                  )
+                                : GridView.builder(
+                                    padding: const EdgeInsets.only(top: 16),
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 2,
+                                      childAspectRatio: 0.75,
+                                      crossAxisSpacing: 16,
+                                      mainAxisSpacing: 16,
+                                    ),
+                                    itemCount: _userSkills.length,
+                                    itemBuilder: (context, index) {
+                                      return SkillCard(
+                                        skill: _userSkills[index],
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  SkillDetailScreen(
+                                                skill: _userSkills[index],
+                                              ),
+                                            ),
+                                          ).then((_) => _loadUserData());
+                                        },
+                                      );
+                                    },
+                                  ),
+
+                            // Favorite Categories Tab
+                            _favoriteCategories.isEmpty
+                                ? const Center(
+                                    child: Text(
+                                        'No favorite categories selected yet.'),
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.only(top: 16),
+                                    itemCount: _favoriteCategories.length,
+                                    itemBuilder: (context, index) {
+                                      return Card(
+                                        margin:
+                                            const EdgeInsets.only(bottom: 8),
+                                        child: ListTile(
+                                          title: Text(
+                                            _favoriteCategories[index],
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+
+                            // Created Skills Tab
+                            _createdSkills.isEmpty
+                                ? const Center(
+                                    child: Text('No skills created yet.'),
+                                  )
+                                : GridView.builder(
+                                    padding: const EdgeInsets.only(top: 16),
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 2,
+                                      childAspectRatio: 0.75,
+                                      crossAxisSpacing: 16,
+                                      mainAxisSpacing: 16,
+                                    ),
+                                    itemCount: _createdSkills.length,
+                                    itemBuilder: (context, index) {
+                                      return SkillCard(
+                                        skill: _createdSkills[index],
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  SkillDetailScreen(
+                                                skill: _createdSkills[index],
+                                              ),
+                                            ),
+                                          ).then((_) => _loadUserData());
+                                        },
+                                      );
+                                    },
+                                  ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
     );
   }
 }

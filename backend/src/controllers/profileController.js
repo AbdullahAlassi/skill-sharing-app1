@@ -13,6 +13,7 @@ exports.getProfile = async (req, res) => {
       .populate("interests", "name category")
       .populate("friends", "name profilePicture")
       .populate("groups", "name description")
+      .populate("createdSkills", "name category description")
 
     if (!user) {
       return res.status(404).json({ message: "User not found" })

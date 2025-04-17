@@ -6,14 +6,16 @@ import '../../theme/app_theme.dart';
 import 'package:frontend/widget/custome_button.dart';
 import 'package:frontend/widget/custome_text.dart';
 
-class CreateSkillScreen extends StatefulWidget {
-  const CreateSkillScreen({super.key});
+class EditSkillScreen extends StatefulWidget {
+  final Skill skill;
+
+  const EditSkillScreen({super.key, required this.skill});
 
   @override
-  _CreateSkillScreenState createState() => _CreateSkillScreenState();
+  _EditSkillScreenState createState() => _EditSkillScreenState();
 }
 
-class _CreateSkillScreenState extends State<CreateSkillScreen> {
+class _EditSkillScreenState extends State<EditSkillScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -29,20 +31,29 @@ class _CreateSkillScreenState extends State<CreateSkillScreen> {
   bool _isSkillsLoading = true;
   String? _errorMessage;
 
-  // Create a new instance of SkillService each time
   late final SkillService _skillService;
 
   @override
   void initState() {
     super.initState();
-    // Initialize a fresh instance of SkillService
     _skillService = SkillService();
-    print("Initializing CreateSkillScreen with fresh SkillService");
-
-    // Reset state and load fresh data
-    _selectedCategory = null;
-    _categories = [];
+    _initializeForm();
     _loadCategoriesAndSkills();
+  }
+
+  void _initializeForm() {
+    _nameController.text = widget.skill.name;
+    _descriptionController.text = widget.skill.description;
+    _selectedCategory = widget.skill.category;
+    _selectedRelatedSkills.addAll(widget.skill.relatedSkills);
+    if (widget.skill.proficiency != null) {
+      _selectedProficiency = ProficiencyLevel.values.firstWhere(
+        (level) =>
+            level.toString().split('.').last.toLowerCase() ==
+            widget.skill.proficiency!.toLowerCase(),
+        orElse: () => ProficiencyLevel.beginner,
+      );
+    }
   }
 
   @override
@@ -52,74 +63,33 @@ class _CreateSkillScreenState extends State<CreateSkillScreen> {
     super.dispose();
   }
 
-  // Combined method to load both categories and skills
   Future<void> _loadCategoriesAndSkills() async {
     setState(() {
       _isCategoriesLoading = true;
       _isSkillsLoading = true;
     });
 
-    // Load categories
     await _loadCategories();
-
-    // Load skills
     await _loadSkills();
   }
 
   Future<void> _loadCategories() async {
-    print("Loading categories...");
     try {
       final response = await _skillService.getCategories();
-      print(
-        "Categories API response: ${response.success}, data length: ${response.data?.length ?? 0}",
-      );
-
-      if (response.success &&
-          response.data != null &&
-          response.data!.isNotEmpty) {
+      if (response.success && response.data != null) {
         setState(() {
-          // Store all categories
-          _categories = List<String>.from(response.data!);
-          print("Loaded ${_categories.length} categories: $_categories");
-
-          // Set default category only if none is selected
-          if (_selectedCategory == null && _categories.isNotEmpty) {
-            _selectedCategory = _categories.first;
-            print("Set default category to: $_selectedCategory");
-          }
+          _categories = response.data!;
           _isCategoriesLoading = false;
         });
       } else {
-        print("No categories from API, using defaults");
-        // If no categories exist yet or the list is empty, provide default ones
         setState(() {
-          _categories = [
-            'Programming',
-            'Design',
-            'Marketing',
-            'Art',
-            'Music',
-            'Language',
-            'Other',
-          ];
-          _selectedCategory ??= 'Programming';
+          _categories = SkillService.defaultCategories;
           _isCategoriesLoading = false;
         });
       }
     } catch (e) {
-      print("Error loading categories: $e");
-      // Use default categories if API fails
       setState(() {
-        _categories = [
-          'Programming',
-          'Design',
-          'Marketing',
-          'Art',
-          'Music',
-          'Language',
-          'Other',
-        ];
-        _selectedCategory ??= 'Programming';
+        _categories = SkillService.defaultCategories;
         _isCategoriesLoading = false;
       });
     }
@@ -140,7 +110,6 @@ class _CreateSkillScreenState extends State<CreateSkillScreen> {
         });
       }
     } catch (e) {
-      print("Error loading skills: $e");
       setState(() {
         _allSkills = [];
         _isSkillsLoading = false;
@@ -148,7 +117,7 @@ class _CreateSkillScreenState extends State<CreateSkillScreen> {
     }
   }
 
-  Future<void> _createSkill() async {
+  Future<void> _updateSkill() async {
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedCategory == null) {
@@ -168,7 +137,8 @@ class _CreateSkillScreenState extends State<CreateSkillScreen> {
       final formattedProficiency = proficiencyLevel[0].toUpperCase() +
           proficiencyLevel.substring(1).toLowerCase();
 
-      final response = await _skillService.createSkill(
+      final response = await _skillService.updateSkill(
+        widget.skill.id,
         _nameController.text,
         _selectedCategory!,
         _descriptionController.text,
@@ -179,14 +149,14 @@ class _CreateSkillScreenState extends State<CreateSkillScreen> {
       if (response.success && response.data != null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Skill created successfully')),
+            const SnackBar(content: Text('Skill updated successfully')),
           );
           Navigator.pop(context, response.data);
         }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(response.error ?? 'Failed to create skill')),
+            SnackBar(content: Text(response.error ?? 'Failed to update skill')),
           );
         }
       }
@@ -208,7 +178,7 @@ class _CreateSkillScreenState extends State<CreateSkillScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create New Skill')),
+      appBar: AppBar(title: const Text('Edit Skill')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -217,12 +187,12 @@ class _CreateSkillScreenState extends State<CreateSkillScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Share Your Knowledge',
+                'Edit Skill Details',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 8),
               Text(
-                'Create a new skill to share with the community',
+                'Update the skill information',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppTheme.textSecondaryColor,
                     ),
@@ -308,9 +278,6 @@ class _CreateSkillScreenState extends State<CreateSkillScreen> {
                                 if (value != null) {
                                   setState(() {
                                     _selectedCategory = value;
-                                    print(
-                                      "Selected category: $_selectedCategory",
-                                    );
                                   });
                                 }
                               },
@@ -439,10 +406,10 @@ class _CreateSkillScreenState extends State<CreateSkillScreen> {
                         ),
               const SizedBox(height: 32),
 
-              // Create button
+              // Update button
               CustomButton(
-                text: 'Create Skill',
-                onPressed: _createSkill,
+                text: 'Update Skill',
+                onPressed: _updateSkill,
                 isLoading: _isLoading,
               ),
               const SizedBox(height: 16),

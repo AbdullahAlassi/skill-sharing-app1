@@ -1,70 +1,100 @@
 import 'package:frontend/models/skill_model.dart';
+import 'skill_proficiency_model.dart';
 
 class User {
   final String id;
   final String name;
   final String email;
-  final String? bio;
   final String? profilePicture;
-  final List<UserSkill> skills;
-  final List<Skill>? interests;
-  final List<String>? friends;
-  final List<String>? groups;
+  final String? bio;
+  final List<String> favoriteCategories;
+  final List<String> friends;
+  final List<String> groups;
+  final List<String> createdSkills;
+  final List<String> skills;
+  final List<SkillProficiency>? skillProficiencies;
   final DateTime createdAt;
 
   User({
     required this.id,
     required this.name,
     required this.email,
-    this.bio,
     this.profilePicture,
-    this.skills = const [],
-    this.interests,
-    this.friends,
-    this.groups,
+    this.bio,
+    required this.favoriteCategories,
+    required this.friends,
+    required this.groups,
+    required this.createdSkills,
+    required this.skills,
+    this.skillProficiencies,
     required this.createdAt,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    // Extract skill IDs and proficiencies from the nested skills array
+    List<String> skills = [];
+    Map<String, String> skillProficiencies = {};
+    if (json['skills'] != null && json['skills'] is List) {
+      for (var skillObj in json['skills']) {
+        if (skillObj is Map && skillObj['skill'] is Map) {
+          final skillId = skillObj['skill']['_id'].toString();
+          skills.add(skillId);
+          skillProficiencies[skillId] = skillObj['proficiency'] ?? 'Beginner';
+        }
+      }
+    }
+
     return User(
-      id: json['_id'] ?? json['id'] ?? '',
+      id: json['_id'] ?? '',
       name: json['name'] ?? '',
       email: json['email'] ?? '',
-      bio: json['bio'],
       profilePicture: json['profilePicture'],
-      skills:
-          json['skills'] != null
-              ? List<UserSkill>.from(
-                json['skills'].map((x) => UserSkill.fromJson(x)),
-              )
-              : [],
-      interests:
-          json['interests'] != null
-              ? List<Skill>.from(
-                json['interests'].map((x) => Skill.fromJson(x)),
-              )
-              : null,
-      friends:
-          json['friends'] != null ? List<String>.from(json['friends']) : null,
-      groups: json['groups'] != null ? List<String>.from(json['groups']) : null,
+      bio: json['bio'],
+      favoriteCategories: List<String>.from(json['favoriteCategories'] ?? []),
+      friends: List<String>.from(json['friends'] ?? []),
+      groups: List<String>.from(json['groups'] ?? []),
+      createdSkills: List<String>.from(json['createdSkills'] ?? []),
+      skills: skills,
+      skillProficiencies: json['skills'] != null
+          ? List<SkillProficiency>.from(
+              (json['skills'] as List).map((skillObj) {
+                if (skillObj is Map && skillObj['skill'] is Map) {
+                  return SkillProficiency(
+                    skillId: skillObj['skill']['_id'].toString(),
+                    level: ProficiencyLevel.values.firstWhere(
+                      (e) =>
+                          e.toString().split('.').last.toLowerCase() ==
+                          (skillObj['proficiency'] as String).toLowerCase(),
+                      orElse: () => ProficiencyLevel.beginner,
+                    ),
+                    startedLearning: DateTime.parse(skillObj['addedAt']),
+                  );
+                }
+                return SkillProficiency(
+                  skillId: '',
+                  level: ProficiencyLevel.beginner,
+                  startedLearning: DateTime.now(),
+                );
+              }),
+            )
+          : null,
       createdAt:
-          json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'])
-              : DateTime.now(),
+          DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      '_id': id,
       'name': name,
       'email': email,
-      'bio': bio,
       'profilePicture': profilePicture,
-      'skills': skills.map((x) => x.toJson()).toList(),
-      'interests': interests?.map((x) => x.toJson()).toList(),
+      'bio': bio,
+      'favoriteCategories': favoriteCategories,
       'friends': friends,
       'groups': groups,
+      'createdSkills': createdSkills,
+      'skills': skills,
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -78,17 +108,16 @@ class UserSkill {
 
   factory UserSkill.fromJson(Map<String, dynamic> json) {
     return UserSkill(
-      skill:
-          json['skill'] is Map
-              ? Skill.fromJson(json['skill'])
-              : Skill(
-                id: json['skill'] ?? '',
-                name: '',
-                category: '',
-                description: '',
-                createdAt: DateTime.now(),
-              ),
-
+      skill: json['skill'] is Map
+          ? Skill.fromJson(json['skill'])
+          : Skill(
+              id: json['skill'] ?? '',
+              name: '',
+              category: '',
+              description: '',
+              relatedSkills: [],
+              createdAt: DateTime.now(),
+            ),
       proficiency: json['proficiency'] ?? 'Beginner',
     );
   }

@@ -8,8 +8,11 @@ import 'api_client.dart';
 
 class SkillService {
   final ApiClient _apiClient;
+  final String baseUrl;
 
-  SkillService({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
+  SkillService({ApiClient? apiClient, String? baseUrl})
+      : _apiClient = apiClient ?? ApiClient(),
+        baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
 
   // Default categories that will be used if API returns empty list or fails
   static const List<String> defaultCategories = [
@@ -40,7 +43,7 @@ class SkillService {
       }
 
       final response = await http.get(
-        Uri.parse('${AppConfig.apiBaseUrl}/skills'),
+        Uri.parse('${baseUrl}/skills'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -89,7 +92,7 @@ class SkillService {
       }
 
       final response = await http.get(
-        Uri.parse('${AppConfig.apiBaseUrl}/skills/$id'),
+        Uri.parse('${baseUrl}/skills/$id'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -122,6 +125,7 @@ class SkillService {
     String category,
     String description,
     List<String> relatedSkills,
+    String proficiency,
   ) async {
     try {
       final token = await TokenStorage.getToken();
@@ -134,7 +138,7 @@ class SkillService {
       }
 
       final response = await http.post(
-        Uri.parse('${AppConfig.apiBaseUrl}/skills'),
+        Uri.parse('${baseUrl}/skills'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -144,8 +148,12 @@ class SkillService {
           'category': category,
           'description': description,
           'relatedSkills': relatedSkills,
+          'proficiency': proficiency,
         }),
       );
+
+      print('Create Skill Response: ${response.statusCode}');
+      print('Create Skill Body: ${response.body}');
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -163,6 +171,7 @@ class SkillService {
         );
       }
     } catch (e) {
+      print('Create Skill Error: $e');
       return ApiResponse(success: false, error: e.toString(), statusCode: 0);
     }
   }
@@ -174,6 +183,7 @@ class SkillService {
     String category,
     String description,
     List<String> relatedSkills,
+    String proficiency,
   ) async {
     try {
       final token = await TokenStorage.getToken();
@@ -186,7 +196,7 @@ class SkillService {
       }
 
       final response = await http.put(
-        Uri.parse('${AppConfig.apiBaseUrl}/skills/$id'),
+        Uri.parse('${baseUrl}/skills/$id'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -196,8 +206,12 @@ class SkillService {
           'category': category,
           'description': description,
           'relatedSkills': relatedSkills,
+          'proficiency': proficiency,
         }),
       );
+
+      print('Update Skill Response: ${response.statusCode}');
+      print('Update Skill Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -215,6 +229,7 @@ class SkillService {
         );
       }
     } catch (e) {
+      print('Update Skill Error: $e');
       return ApiResponse(success: false, error: e.toString(), statusCode: 0);
     }
   }
@@ -232,7 +247,7 @@ class SkillService {
       }
 
       final response = await http.get(
-        Uri.parse('${AppConfig.apiBaseUrl}/skills/categories'),
+        Uri.parse('${baseUrl}/skills/categories'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -278,17 +293,16 @@ class SkillService {
     try {
       final response = await _apiClient
           .get<List<Skill>>('skills/recommendations', (json, _) {
-            if (json is String) {
-              final parsedJson = jsonDecode(json);
-              if (parsedJson is List) {
-                return parsedJson.map((x) => Skill.fromJson(x)).toList();
-              }
-            } else if (json is List) {
-              return json.map((x) => Skill.fromJson(x)).toList();
-            }
-            return [];
-          })
-          .timeout(const Duration(seconds: 10));
+        if (json is String) {
+          final parsedJson = jsonDecode(json);
+          if (parsedJson is List) {
+            return parsedJson.map((x) => Skill.fromJson(x)).toList();
+          }
+        } else if (json is List) {
+          return json.map((x) => Skill.fromJson(x)).toList();
+        }
+        return [];
+      }).timeout(const Duration(seconds: 10));
 
       return response;
     } on TimeoutException {

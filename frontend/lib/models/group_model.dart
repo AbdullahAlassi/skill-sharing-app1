@@ -31,26 +31,23 @@ class Group {
       name: json['name'],
       description: json['description'],
       image: json['image'],
-      relatedSkills:
-          json['relatedSkills'] != null
-              ? List<Skill>.from(
-                json['relatedSkills'].map((x) => Skill.fromJson(x)),
-              )
-              : [],
+      relatedSkills: json['relatedSkills'] != null
+          ? List<Skill>.from(
+              json['relatedSkills'].map((x) => Skill.fromJson(x)),
+            )
+          : [],
       creatorId:
           json['creator'] is String ? json['creator'] : json['creator']['_id'],
       creatorName: json['creator'] is Map ? json['creator']['name'] : null,
-      members:
-          json['members'] != null
-              ? List<GroupMember>.from(
-                json['members'].map((x) => GroupMember.fromJson(x)),
-              )
-              : [],
+      members: json['members'] != null
+          ? List<GroupMember>.from(
+              json['members'].map((x) => GroupMember.fromJson(x)),
+            )
+          : [],
       isPublic: json['isPublic'],
-      createdAt:
-          json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'])
-              : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
     );
   }
 
@@ -64,11 +61,11 @@ class Group {
   }
 
   bool get isUserMember => members.any(
-    (m) => m.userId == 'currentUserId',
-  ); // Replace with actual user ID check
+        (m) => m.userId == 'currentUserId',
+      ); // Replace with actual user ID check
   bool get isUserAdmin => members.any(
-    (m) => m.userId == 'currentUserId' && m.role == 'Admin',
-  ); // Replace with actual user ID check
+        (m) => m.userId == 'currentUserId' && m.role == 'Admin',
+      ); // Replace with actual user ID check
 }
 
 class GroupMember {
@@ -93,10 +90,9 @@ class GroupMember {
       userProfilePicture:
           json['user'] is Map ? json['user']['profilePicture'] : null,
       role: json['role'],
-      joinedAt:
-          json['joinedAt'] != null
-              ? DateTime.parse(json['joinedAt'])
-              : DateTime.now(),
+      joinedAt: json['joinedAt'] != null
+          ? DateTime.parse(json['joinedAt'])
+          : DateTime.now(),
     );
   }
 }

@@ -44,7 +44,7 @@ exports.createSkill = async (req, res) => {
     return res.status(400).json({ errors: errors.array() })
   }
 
-  const { name, category, description, relatedSkills } = req.body
+  const { name, category, description, relatedSkills, proficiency } = req.body
 
   try {
     // Check if skill already exists
@@ -59,10 +59,21 @@ exports.createSkill = async (req, res) => {
       category,
       description,
       relatedSkills: relatedSkills || [],
+      proficiency: proficiency || 'Beginner',
       createdBy: req.user.id,
     })
 
     await skill.save()
+
+    // Add skill to user's createdSkills array
+    await User.findByIdAndUpdate(
+      req.user.id,
+      { $push: { createdSkills: skill._id } }
+    )
+
+    // Populate the skill with related skills and creator info
+    await skill.populate("relatedSkills", "name category description")
+    await skill.populate("createdBy", "name")
 
     res.status(201).json(skill)
   } catch (err) {
@@ -80,13 +91,19 @@ exports.updateSkill = async (req, res) => {
     return res.status(400).json({ errors: errors.array() })
   }
 
-  const { name, category, description, relatedSkills } = req.body
+  const { name, category, description, relatedSkills, proficiency } = req.body
+  const skillId = req.params.id
 
   try {
-    const skill = await Skill.findById(req.params.id)
+    const skill = await Skill.findById(skillId)
 
     if (!skill) {
       return res.status(404).json({ message: "Skill not found" })
+    }
+
+    // Check if user is the creator of the skill
+    if (skill.createdBy.toString() !== req.user.id) {
+      return res.status(401).json({ message: "Not authorized to update this skill" })
     }
 
     // Update fields
@@ -94,6 +111,7 @@ exports.updateSkill = async (req, res) => {
     if (category) skill.category = category
     if (description) skill.description = description
     if (relatedSkills) skill.relatedSkills = relatedSkills
+    if (proficiency) skill.proficiency = proficiency
 
     await skill.save()
 
@@ -128,28 +146,38 @@ exports.getRecommendations = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Get user's current skill IDs
-    const userSkillIds = user.skills.map((s) => s.skill._id.toString());
-
-    // Get user's skill categories
-    const userCategories = user.skills.map((s) => s.skill.category);
-
     let recommendations = [];
 
-    // If user has skills, find related skills
-    if (userSkillIds.length > 0) {
+    // If user has skills, get recommendations based on their skills
+    if (user.skills && user.skills.length > 0) {
+      // Get user's current skill IDs, filtering out any null skill references
+      const userSkillIds = user.skills
+        .filter(s => s.skill && s.skill._id)
+        .map(s => s.skill._id.toString());
+
+      // Get user's skill categories, filtering out any null skill references
+      const userCategories = user.skills
+        .filter(s => s.skill && s.skill.category)
+        .map(s => s.skill.category);
+
       recommendations = await Skill.find({
         _id: { $nin: userSkillIds },
         category: { $in: userCategories },
       }).limit(10);
     }
+    // If user has no skills but has favorite categories, use those
+    else if (user.favoriteCategories && user.favoriteCategories.length > 0) {
+      recommendations = await Skill.find({
+        category: { $in: user.favoriteCategories },
+      }).limit(10);
+    }
 
-    // If not enough recommendations or user has no skills, add popular skills
+    // If not enough recommendations, add popular skills
     if (recommendations.length < 5) {
       const additionalSkills = await Skill.find({
-        _id: { $nin: [...userSkillIds, ...recommendations.map((r) => r._id)] },
+        _id: { $nin: recommendations.map((r) => r._id) },
       })
-        .sort({ createdAt: -1 }) // Sort by newest first
+        .sort({ createdAt: -1 })
         .limit(5 - recommendations.length);
 
       recommendations.push(...additionalSkills);

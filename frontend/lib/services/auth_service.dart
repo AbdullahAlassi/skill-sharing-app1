@@ -10,8 +10,8 @@ class AuthService {
   final String baseUrl;
 
   AuthService({ApiClient? apiClient, required String baseUrl})
-    : _apiClient = apiClient ?? ApiClient(),
-      baseUrl = baseUrl;
+      : _apiClient = apiClient ?? ApiClient(),
+        baseUrl = baseUrl;
 
   // Register a new user
   Future<ApiResponse<Map<String, dynamic>>> register(
@@ -95,31 +95,63 @@ class AuthService {
       }
 
       final response = await http.get(
-        Uri.parse('${AppConfig.apiBaseUrl}/auth/user'),
+        Uri.parse('$baseUrl/users/me'),
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
         },
       );
 
+      print('Current User API Response Status: ${response.statusCode}');
+      print('Current User API Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final user = User.fromJson(data);
+        try {
+          final jsonData = json.decode(response.body);
+          final user = User.fromJson(jsonData);
+          return ApiResponse(
+            success: true,
+            data: user,
+            statusCode: response.statusCode,
+          );
+        } catch (e) {
+          print('Error parsing user data: $e');
+          return ApiResponse(
+            success: false,
+            error: 'Failed to parse user data: $e',
+            statusCode: response.statusCode,
+          );
+        }
+      } else if (response.statusCode == 401) {
+        await TokenStorage.clearToken();
         return ApiResponse(
-          success: true,
-          data: user,
+          success: false,
+          error: 'Session expired. Please login again.',
           statusCode: response.statusCode,
         );
       } else {
-        final data = jsonDecode(response.body);
-        return ApiResponse(
-          success: false,
-          error: data['message'] ?? 'Failed to get user data',
-          statusCode: response.statusCode,
-        );
+        try {
+          final errorData = json.decode(response.body);
+          return ApiResponse(
+            success: false,
+            error: errorData['message'] ?? 'Failed to fetch user data',
+            statusCode: response.statusCode,
+          );
+        } catch (e) {
+          return ApiResponse(
+            success: false,
+            error: 'Failed to fetch user data: ${response.body}',
+            statusCode: response.statusCode,
+          );
+        }
       }
     } catch (e) {
-      return ApiResponse(success: false, error: e.toString(), statusCode: 0);
+      print('Error in getCurrentUser: $e');
+      return ApiResponse(
+        success: false,
+        error: 'Failed to fetch user data: $e',
+        statusCode: 500,
+      );
     }
   }
 

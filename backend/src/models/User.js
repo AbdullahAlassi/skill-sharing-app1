@@ -37,9 +37,8 @@ const UserSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  interests: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Skill'
+  favoriteCategories: [{
+    type: String,
   }],
   friends: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -48,6 +47,10 @@ const UserSchema = new mongoose.Schema({
   groups: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Group'
+  }],
+  createdSkills: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Skill'
   }],
   createdAt: {
     type: Date,

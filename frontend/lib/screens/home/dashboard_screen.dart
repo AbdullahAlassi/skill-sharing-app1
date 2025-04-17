@@ -12,6 +12,7 @@ import 'package:frontend/widget/skill_card.dart';
 import '../skills/skill_detail_screen.dart';
 import '../events/events_screen.dart';
 import '../skills/skills_screen.dart';
+import '../skills/recommended_skills_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -42,6 +43,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final user = userProvider.user;
 
       print('Loading recommendations for user: ${user?.id}');
+      print('User favorite categories: ${user?.favoriteCategories}');
 
       // Get skill recommendations
       final skillService = SkillService();
@@ -59,9 +61,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       setState(() {
         if (skillResponse.success && skillResponse.data != null) {
-          // Limit to 4 skills
-          _recommendedSkills = skillResponse.data!.take(4).toList();
-          print('Loaded ${_recommendedSkills.length} recommended skills');
+          // Filter skills based on user's favorite categories
+          if (user?.favoriteCategories != null &&
+              user!.favoriteCategories!.isNotEmpty) {
+            _recommendedSkills = skillResponse.data!
+                .where((skill) =>
+                    user.favoriteCategories!.contains(skill.category))
+                .take(4)
+                .toList();
+            print(
+                'Loaded ${_recommendedSkills.length} filtered recommended skills');
+
+            // If we don't have enough skills from favorite categories, load more
+            if (_recommendedSkills.length < 4) {
+              final remainingSkills = skillResponse.data!
+                  .where((skill) =>
+                      !user.favoriteCategories!.contains(skill.category))
+                  .take(4 - _recommendedSkills.length)
+                  .toList();
+              _recommendedSkills.addAll(remainingSkills);
+              print('Added ${remainingSkills.length} additional skills');
+            }
+          } else {
+            // If no favorite categories, just take the first 4 skills
+            _recommendedSkills = skillResponse.data!.take(4).toList();
+            print(
+                'Loaded ${_recommendedSkills.length} default recommended skills');
+          }
         } else {
           // If recommendations failed, get some default skills
           _loadDefaultSkills();
@@ -69,11 +95,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         if (eventResponse.success && eventResponse.data != null) {
           // Sort events by date and take only upcoming ones
-          _upcomingEvents =
-              eventResponse.data!
-                  .where((event) => event.date.isAfter(DateTime.now()))
-                  .toList()
-                ..sort((a, b) => a.date.compareTo(b.date));
+          _upcomingEvents = eventResponse.data!
+              .where((event) => event.date.isAfter(DateTime.now()))
+              .toList()
+            ..sort((a, b) => a.date.compareTo(b.date));
 
           // Limit to 3 events
           if (_upcomingEvents.length > 3) {
@@ -103,9 +128,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (response.success &&
           response.data != null &&
           response.data!.isNotEmpty) {
+        final user = Provider.of<UserProvider>(context, listen: false).user;
+
         setState(() {
-          // Take the first 4 skills as default recommendations
-          _recommendedSkills = response.data!.take(4).toList();
+          if (user?.favoriteCategories != null &&
+              user!.favoriteCategories!.isNotEmpty) {
+            // Filter default skills by favorite categories
+            _recommendedSkills = response.data!
+                .where((skill) =>
+                    user.favoriteCategories!.contains(skill.category))
+                .take(4)
+                .toList();
+
+            // If we don't have enough skills from favorite categories, add more
+            if (_recommendedSkills.length < 4) {
+              final remainingSkills = response.data!
+                  .where((skill) =>
+                      !user.favoriteCategories!.contains(skill.category))
+                  .take(4 - _recommendedSkills.length)
+                  .toList();
+              _recommendedSkills.addAll(remainingSkills);
+            }
+          } else {
+            // If no favorite categories, just take the first 4 skills
+            _recommendedSkills = response.data!.take(4).toList();
+          }
           print('Loaded ${_recommendedSkills.length} default skills');
         });
       } else {
@@ -136,53 +183,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                onRefresh: _loadData,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // User greeting
-                      Text(
-                        'Hello, ${Provider.of<UserProvider>(context).user?.name ?? "User"}!',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'What would you like to learn today?',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppTheme.textSecondaryColor,
-                        ),
-                      ),
-                      const SizedBox(height: 24.0),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // User greeting
+                    Text(
+                      'Hello, ${Provider.of<UserProvider>(context).user?.name ?? "User"}!',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'What would you like to learn today?',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: AppTheme.textSecondaryColor,
+                          ),
+                    ),
+                    const SizedBox(height: 24.0),
 
-                      // Recommended Skills Section
-                      SectionHeader(
-                        title: 'Recommended Skills',
-                        onViewAll: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SkillsScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      _recommendedSkills.isEmpty
-                          ? const Center(child: Text('No skills available'))
-                          : SizedBox(
+                    // Recommended Skills Section
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Recommended Skills',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const RecommendedSkillsScreen(),
+                              ),
+                            );
+                          },
+                          child: const Text('View All'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _recommendedSkills.isEmpty
+                        ? const Center(child: Text('No skills available'))
+                        : SizedBox(
                             height: 200,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: _recommendedSkills.length,
-                              separatorBuilder:
-                                  (context, index) =>
-                                      const SizedBox(width: 12.0),
+                              separatorBuilder: (context, index) =>
+                                  const SizedBox(width: 12.0),
                               itemBuilder: (context, index) {
                                 final skill = _recommendedSkills[index];
                                 return SkillCard(
@@ -191,9 +249,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder:
-                                            (context) =>
-                                                SkillDetailScreen(skill: skill),
+                                        builder: (context) =>
+                                            SkillDetailScreen(skill: skill),
                                       ),
                                     ).then((_) => _loadData());
                                   },
@@ -201,43 +258,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               },
                             ),
                           ),
-                      const SizedBox(height: 24.0),
+                    const SizedBox(height: 24.0),
 
-                      // Upcoming Events Section
-                      SectionHeader(
-                        title: 'Upcoming Events',
-                        onViewAll: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const EventsScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      _upcomingEvents.isEmpty
-                          ? const Center(
+                    // Upcoming Events Section
+                    SectionHeader(
+                      title: 'Upcoming Events',
+                      onViewAll: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const EventsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _upcomingEvents.isEmpty
+                        ? const Center(
                             child: Text('No upcoming events available'),
                           )
-                          : SizedBox(
+                        : SizedBox(
                             height: 250,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: _upcomingEvents.length,
-                              separatorBuilder:
-                                  (context, index) =>
-                                      const SizedBox(width: 12.0),
+                              separatorBuilder: (context, index) =>
+                                  const SizedBox(width: 12.0),
                               itemBuilder: (context, index) {
                                 final event = _upcomingEvents[index];
                                 return EventCard(event: event);
                               },
                             ),
                           ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
+            ),
     );
   }
 }

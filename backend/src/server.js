@@ -16,11 +16,12 @@ app.use(cors())
 // Define Routes
 app.use("/api/auth", require("./routes/authRoutes"))
 app.use("/api/profile", require("./routes/profile"))
-app.use("/api/skills", require("./routes/skills"))
+app.use("/api/users", require("./routes/users"))
 app.use("/api/resources", require("./routes/resources"))
-app.use("/api/progress", require("./routes/progress"))
-app.use("/api/events", require("./routes/event"))
 app.use("/api/social", require("./routes/social"))
+app.use("/api/skills", require("./routes/skills"))
+app.use("/api/events", require("./routes/event"))
+app.use("/api/progress", require("./routes/progress"))
 
 // Serve static files from the uploads directory
 app.use("/uploads", express.static("uploads"))

@@ -30,27 +30,26 @@ class Resource {
       description: json['description'] ?? '',
       link: json['link'] ?? '',
       type: json['type'] ?? '',
-      skill:
-          json['skill'] is Map
-              ? Skill.fromJson(json['skill'])
-              : Skill(
-                id: json['skill'] ?? '',
-                name: '',
-                category: '',
-                description: '',
-                createdAt: DateTime.now(),
-              ),
+      skill: json['skill'] is Map
+          ? Skill.fromJson(json['skill'])
+          : Skill(
+              id: json['skill'] ?? '',
+              name: '',
+              category: '',
+              description: '',
+              relatedSkills: [],
+              proficiency: 'Beginner',
+              createdAt: DateTime.now(),
+            ),
       addedBy: json['addedBy'] ?? '',
-      reviews:
-          json['reviews'] != null
-              ? List<Review>.from(
-                json['reviews'].map((x) => Review.fromJson(x)),
-              )
-              : null,
-      createdAt:
-          json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'])
-              : DateTime.now(),
+      reviews: json['reviews'] != null
+          ? List<Review>.from(
+              json['reviews'].map((x) => Review.fromJson(x)),
+            )
+          : null,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
     );
   }
 
@@ -93,10 +92,9 @@ class Review {
       comment: json['comment'] ?? '',
       userId: json['userId'] ?? '',
       userName: json['userName'] ?? '',
-      createdAt:
-          json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'])
-              : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
     );
   }
 

@@ -130,8 +130,7 @@ exports.getUser = async (req, res) => {
 
     const user = await User.findById(req.user.id)
       .select('-password')
-      .populate('skills.skill', 'name category')
-      .populate('interests', 'name category');
+      .populate('skills.skill', 'name category');
       
     if (!user) {
       return res.status(404).json({ message: 'User not found in database' });

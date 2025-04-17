@@ -18,9 +18,15 @@ const SkillSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Skill'
   }],
+  proficiency: {
+    type: String,
+    enum: ['Beginner', 'Intermediate', 'Advanced'],
+    default: 'Beginner'
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'User',
+    required: true
   },
   createdAt: {
     type: Date,

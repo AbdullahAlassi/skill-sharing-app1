@@ -12,6 +12,7 @@ import 'package:frontend/screens/events/event_detail_screen.dart';
 import 'utils/token_storage.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'theme/app_theme.dart';
+import 'screens/auth/initial_route_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -106,15 +107,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => UserProvider()),
-        // Add other providers here if needed
-      ],
+    return ChangeNotifierProvider(
+      create: (_) => UserProvider(),
       child: MaterialApp(
         title: 'Skill Sharing App',
         theme: AppTheme.lightTheme,
-        home: const AuthWrapper(),
+        themeMode: ThemeMode.system,
+        home: const InitialRouteScreen(),
         debugShowCheckedModeBanner: false,
       ),
     );

@@ -4,6 +4,7 @@ import 'package:frontend/widget/custome_button.dart';
 import 'package:frontend/widget/custome_text.dart';
 import '../home/home_screen.dart';
 import 'login_screen.dart';
+import 'favorite_categories_screen.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/auth_service.dart';
@@ -61,11 +62,12 @@ class _SignupScreenState extends State<SignupScreen> {
         // If registration is successful, load the user data using the provider
         await Provider.of<UserProvider>(context, listen: false).loadUser();
 
-        // Navigate to home screen
+        // Navigate to favorite categories screen
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            MaterialPageRoute(
+                builder: (context) => const FavoriteCategoriesScreen()),
           );
         }
       } else {
@@ -110,8 +112,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   Text(
                     'Create an account to start learning and sharing skills',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppTheme.textSecondaryColor,
-                    ),
+                          color: AppTheme.textSecondaryColor,
+                        ),
                   ),
                   const SizedBox(height: 32),
                   if (_errorMessage != null) ...[
@@ -131,7 +133,9 @@ class _SignupScreenState extends State<SignupScreen> {
                           Expanded(
                             child: Text(
                               _errorMessage!,
-                              style: Theme.of(context).textTheme.bodyMedium
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
                                   ?.copyWith(color: AppTheme.errorColor),
                             ),
                           ),
