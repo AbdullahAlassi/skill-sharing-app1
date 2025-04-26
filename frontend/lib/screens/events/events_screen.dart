@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../theme/app_theme.dart';
 import 'package:frontend/widget/event_card.dart';
+import '../../providers/user_provider.dart';
 import 'event_detail_screen.dart';
 import 'create_event_screen.dart';
 
@@ -13,15 +15,26 @@ class EventsScreen extends StatefulWidget {
   _EventsScreenState createState() => _EventsScreenState();
 }
 
-class _EventsScreenState extends State<EventsScreen> {
-  List<Event> _events = [];
+class _EventsScreenState extends State<EventsScreen>
+    with SingleTickerProviderStateMixin {
+  List<Event> _allEvents = [];
+  List<Event> _myEvents = [];
+  List<Event> _registeredEvents = [];
   bool _isLoading = false;
   String? _errorMessage;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _loadEvents();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadEvents() async {
@@ -34,27 +47,48 @@ class _EventsScreenState extends State<EventsScreen> {
 
     try {
       final eventService = EventService();
-      final response = await eventService.getEvents();
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final currentUserId = userProvider.user?.id;
+
+      // Load all events
+      final allEventsResponse = await eventService.getEvents();
+
+      // Load registered events
+      final registeredEventsResponse = await eventService.getUserEvents();
 
       if (!mounted) return;
 
-      if (response.success && response.data != null) {
+      if (allEventsResponse.success && allEventsResponse.data != null) {
         setState(() {
-          _events = response.data!;
+          _allEvents = allEventsResponse.data!;
+          // Filter events created by current user
+          _myEvents = _allEvents
+              .where((event) => event.organizerId == currentUserId)
+              .toList();
           _isLoading = false;
         });
       } else {
         setState(() {
-          _events = [];
+          _allEvents = [];
+          _myEvents = [];
           _isLoading = false;
-          _errorMessage = response.error ?? 'Failed to load events';
+          _errorMessage = allEventsResponse.error ?? 'Failed to load events';
+        });
+      }
+
+      if (registeredEventsResponse.success &&
+          registeredEventsResponse.data != null) {
+        setState(() {
+          _registeredEvents = registeredEventsResponse.data!;
         });
       }
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        _events = [];
+        _allEvents = [];
+        _myEvents = [];
+        _registeredEvents = [];
         _isLoading = false;
         _errorMessage = 'Error: ${e.toString()}';
       });
@@ -67,6 +101,17 @@ class _EventsScreenState extends State<EventsScreen> {
       appBar: AppBar(
         title: const Text('Events'),
         backgroundColor: AppTheme.primaryColor,
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'All Events'),
+            Tab(text: 'My Events'),
+            Tab(text: 'Registered'),
+          ],
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -84,16 +129,23 @@ class _EventsScreenState extends State<EventsScreen> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildEventsList(_allEvents),
+          _buildEventsList(_myEvents),
+          _buildEventsList(_registeredEvents),
+        ],
+      ),
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading && _events.isEmpty) {
+  Widget _buildEventsList(List<Event> events) {
+    if (_isLoading && events.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_errorMessage != null && _events.isEmpty) {
+    if (_errorMessage != null && events.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -112,36 +164,34 @@ class _EventsScreenState extends State<EventsScreen> {
 
     return RefreshIndicator(
       onRefresh: _loadEvents,
-      child:
-          _events.isEmpty
-              ? const Center(
-                child: Text(
-                  'No events available',
-                  style: TextStyle(fontSize: 16),
-                ),
-              )
-              : ListView.builder(
-                padding: const EdgeInsets.all(16.0),
-                itemCount: _events.length,
-                itemBuilder: (context, index) {
-                  final event = _events[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: EventCard(
-                      event: event,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) => EventDetailScreen(event: event),
-                          ),
-                        ).then((_) => _loadEvents());
-                      },
-                    ),
-                  );
-                },
+      child: events.isEmpty
+          ? const Center(
+              child: Text(
+                'No events available',
+                style: TextStyle(fontSize: 16),
               ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: events.length,
+              itemBuilder: (context, index) {
+                final event = events[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: EventCard(
+                    event: event,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EventDetailScreen(event: event),
+                        ),
+                      ).then((_) => _loadEvents());
+                    },
+                  ),
+                );
+              },
+            ),
     );
   }
 }

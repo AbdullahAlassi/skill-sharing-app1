@@ -323,9 +323,51 @@ class SkillService {
 
   // Get skills for a specific user
   Future<ApiResponse<List<Skill>>> getUserSkills(String userId) async {
-    return await _apiClient.get<List<Skill>>(
-      'skills/user/$userId',
-      (json, _) => (json as List).map((x) => Skill.fromJson(x)).toList(),
-    );
+    try {
+      final token = await TokenStorage.getToken();
+      if (token == null) {
+        return ApiResponse(
+          success: false,
+          error: 'No authentication token found',
+          statusCode: 401,
+        );
+      }
+
+      final response = await http.get(
+        Uri.parse('${baseUrl}/users/me'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['skills'] != null && data['skills'] is List) {
+          final skills = (data['skills'] as List)
+              .map((skillObj) => Skill.fromJson(skillObj['skill']))
+              .toList();
+          return ApiResponse(
+            success: true,
+            data: skills,
+            statusCode: response.statusCode,
+          );
+        }
+        return ApiResponse(
+          success: true,
+          data: [],
+          statusCode: response.statusCode,
+        );
+      } else {
+        final data = jsonDecode(response.body);
+        return ApiResponse(
+          success: false,
+          error: data['message'] ?? 'Failed to get user skills',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(success: false, error: e.toString(), statusCode: 0);
+    }
   }
 }

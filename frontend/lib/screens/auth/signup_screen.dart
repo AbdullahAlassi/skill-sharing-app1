@@ -48,42 +48,48 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
-      // Create an instance of AuthService
-      final authService = AuthService(baseUrl: AppConfig.apiBaseUrl);
+      print('=== Starting Signup Process ===');
+      print('User Data:');
+      print('- Name: ${_nameController.text}');
+      print('- Email: ${_emailController.text}');
 
-      // Call the register method
+      final authService = AuthService(baseUrl: AppConfig.apiBaseUrl);
       final response = await authService.register(
         _nameController.text.trim(),
         _emailController.text.trim(),
         _passwordController.text,
       );
 
-      if (response.success) {
-        // If registration is successful, load the user data using the provider
-        await Provider.of<UserProvider>(context, listen: false).loadUser();
+      print('\nSignup Response:');
+      print('- Success: ${response.success}');
+      print('- Status Code: ${response.statusCode}');
+      if (!response.success) {
+        print('- Error: ${response.error}');
+      }
 
-        // Navigate to favorite categories screen
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-                builder: (context) => const FavoriteCategoriesScreen()),
-          );
-        }
+      if (response.success && mounted) {
+        print('\nSignup successful, navigating to login...');
+        await Provider.of<UserProvider>(context, listen: false).loadUser();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+              builder: (context) => const FavoriteCategoriesScreen()),
+        );
       } else {
-        // If registration fails, show the error message
-        if (mounted) {
-          setState(() {
-            _errorMessage = response.error;
-            _isLoading = false;
-          });
-        }
+        setState(() {
+          _errorMessage = response.error ?? 'Signup failed';
+        });
       }
     } catch (e) {
-      // Handle any exceptions
+      print('\nSignup Error:');
+      print('- Error type: ${e.runtimeType}');
+      print('- Error message: $e');
+      setState(() {
+        _errorMessage = e.toString();
+      });
+    } finally {
       if (mounted) {
         setState(() {
-          _errorMessage = 'An error occurred: ${e.toString()}';
           _isLoading = false;
         });
       }

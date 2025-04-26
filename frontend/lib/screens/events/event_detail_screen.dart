@@ -114,9 +114,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   Text(
                     widget.event.title,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -198,10 +198,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
-                      children:
-                          widget.event.relatedSkills
-                              .map((skill) => Chip(label: Text(skill)))
-                              .toList(),
+                      children: widget.event.relatedSkills
+                          .map((skill) => Chip(label: Text(skill)))
+                          .toList(),
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -226,17 +225,15 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   // Action buttons
                   if (!_isOrganizer) ...[
                     CustomButton(
-                      text:
-                          _isRegistered
-                              ? 'Cancel Registration'
-                              : 'Register for Event',
+                      text: _isRegistered
+                          ? 'Cancel Registration'
+                          : 'Register for Event',
                       onPressed:
                           widget.event.isFull ? () {} : _toggleRegistration,
                       isLoading: _isLoading,
-                      type:
-                          _isRegistered
-                              ? ButtonType.secondary
-                              : ButtonType.primary,
+                      type: _isRegistered
+                          ? ButtonType.secondary
+                          : ButtonType.primary,
                     ),
                     if (widget.event.isFull && !_isRegistered)
                       const Padding(

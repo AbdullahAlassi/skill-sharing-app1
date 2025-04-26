@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
@@ -8,6 +9,7 @@ import 'api_client.dart';
 class AuthService {
   final ApiClient _apiClient;
   final String baseUrl;
+  static const Duration _timeoutDuration = Duration(seconds: 10);
 
   AuthService({ApiClient? apiClient, required String baseUrl})
       : _apiClient = apiClient ?? ApiClient(),
@@ -65,12 +67,14 @@ class AuthService {
       if (response.statusCode == 200) {
         // Save token and user ID
         await TokenStorage.saveToken(data['token'], data['user']['id']);
+        print('Token saved successfully');
         return ApiResponse(
           success: true,
           data: data,
           statusCode: response.statusCode,
         );
       } else {
+        print('Login failed: ${data['message']}');
         return ApiResponse(
           success: false,
           error: data['message'] ?? 'Login failed',
@@ -78,6 +82,7 @@ class AuthService {
         );
       }
     } catch (e) {
+      print('Login error: $e');
       return ApiResponse(success: false, error: e.toString(), statusCode: 0);
     }
   }
@@ -163,5 +168,104 @@ class AuthService {
   // Check if user is logged in
   Future<bool> isLoggedIn() async {
     return await TokenStorage.isLoggedIn();
+  }
+
+  // Validate token
+  Future<ApiResponse<User>> validateToken(String token) async {
+    try {
+      print('Validating token with backend...');
+      print('Base URL: $baseUrl');
+
+      // First try to connect to the server using a known endpoint
+      try {
+        final testResponse = await http.get(
+          Uri.parse(
+              '$baseUrl/api/events'), // Using events endpoint as health check
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        ).timeout(const Duration(seconds: 3));
+
+        if (testResponse.statusCode == 401) {
+          print('Token is invalid or expired');
+          return ApiResponse(
+            success: false,
+            error: 'Token is invalid or expired',
+            statusCode: 401,
+          );
+        } else if (testResponse.statusCode != 200) {
+          print('Server check failed: ${testResponse.statusCode}');
+          return ApiResponse(
+            success: false,
+            error: 'Server is not responding properly',
+            statusCode: testResponse.statusCode,
+          );
+        }
+      } catch (e) {
+        print('Server connection test failed: $e');
+        return ApiResponse(
+          success: false,
+          error:
+              'Could not connect to the server. Please check if the backend server is running.',
+          statusCode: 503,
+        );
+      }
+
+      // If we get here, the server is responding and the token is valid
+      // Get the current user data
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/users/me'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      print('User data response status: ${response.statusCode}');
+      print('User data response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        try {
+          final userData = json.decode(response.body);
+          final user = User.fromJson(userData);
+          return ApiResponse(
+            success: true,
+            data: user,
+            statusCode: response.statusCode,
+          );
+        } catch (e) {
+          print('Error parsing user data: $e');
+          return ApiResponse(
+            success: false,
+            error: 'Failed to parse user data',
+            statusCode: response.statusCode,
+          );
+        }
+      } else {
+        print('Unexpected response status: ${response.statusCode}');
+        return ApiResponse(
+          success: false,
+          error: 'Failed to get user data',
+          statusCode: response.statusCode,
+        );
+      }
+    } on TimeoutException {
+      print('Server connection timed out');
+      return ApiResponse(
+        success: false,
+        error:
+            'Could not connect to the server. Please check if the backend server is running and accessible.',
+        statusCode: 408,
+      );
+    } catch (e) {
+      print('Error validating token: $e');
+      return ApiResponse(
+        success: false,
+        error:
+            'Failed to connect to the server. Please check your internet connection and ensure the backend server is running.',
+        statusCode: 500,
+      );
+    }
   }
 }

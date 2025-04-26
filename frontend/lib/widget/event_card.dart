@@ -15,8 +15,7 @@ class EventCard extends StatelessWidget {
     final dateFormat = DateFormat('MMM d, yyyy • h:mm a');
 
     return GestureDetector(
-      onTap:
-          onTap ??
+      onTap: onTap ??
           () {
             Navigator.push(
               context,

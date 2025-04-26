@@ -24,7 +24,8 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   List<Skill> _recommendedSkills = [];
   List<Event> _upcomingEvents = [];
-  bool _isLoading = false;
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -33,144 +34,77 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
     try {
-      // Get user data
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final user = userProvider.user;
+      final currentUser = userProvider.user;
 
-      print('Loading recommendations for user: ${user?.id}');
-      print('User favorite categories: ${user?.favoriteCategories}');
-
-      // Get skill recommendations
-      final skillService = SkillService();
-      final skillResponse = await skillService.getRecommendations();
-
-      print('Recommendations response: ${skillResponse.success}');
-      print('Recommendations data length: ${skillResponse.data?.length ?? 0}');
-      if (!skillResponse.success) {
-        print('Recommendations error: ${skillResponse.error}');
+      // If user is not loaded, try to load it
+      if (currentUser == null) {
+        print('User not loaded, attempting to load user data...');
+        await userProvider.loadUser();
       }
 
-      // Get upcoming events
-      final eventService = EventService();
-      final eventResponse = await eventService.getEvents();
+      final updatedUser = userProvider.user;
+      print('Current user: ${updatedUser?.name ?? "null"}');
 
-      setState(() {
-        if (skillResponse.success && skillResponse.data != null) {
-          // Filter skills based on user's favorite categories
-          if (user?.favoriteCategories != null &&
-              user!.favoriteCategories!.isNotEmpty) {
-            _recommendedSkills = skillResponse.data!
-                .where((skill) =>
-                    user.favoriteCategories!.contains(skill.category))
-                .take(4)
-                .toList();
-            print(
-                'Loaded ${_recommendedSkills.length} filtered recommended skills');
+      if (updatedUser == null) {
+        print('Loading recommendations for user: null');
+        print('User favorite categories: null');
+      } else {
+        print('Loading recommendations for user: ${updatedUser.id}');
+        print('User favorite categories: ${updatedUser.favoriteCategories}');
+      }
 
-            // If we don't have enough skills from favorite categories, load more
-            if (_recommendedSkills.length < 4) {
-              final remainingSkills = skillResponse.data!
-                  .where((skill) =>
-                      !user.favoriteCategories!.contains(skill.category))
-                  .take(4 - _recommendedSkills.length)
-                  .toList();
-              _recommendedSkills.addAll(remainingSkills);
-              print('Added ${remainingSkills.length} additional skills');
-            }
-          } else {
-            // If no favorite categories, just take the first 4 skills
-            _recommendedSkills = skillResponse.data!.take(4).toList();
-            print(
-                'Loaded ${_recommendedSkills.length} default recommended skills');
-          }
-        } else {
-          // If recommendations failed, get some default skills
-          _loadDefaultSkills();
-        }
-
-        if (eventResponse.success && eventResponse.data != null) {
-          // Sort events by date and take only upcoming ones
-          _upcomingEvents = eventResponse.data!
-              .where((event) => event.date.isAfter(DateTime.now()))
-              .toList()
-            ..sort((a, b) => a.date.compareTo(b.date));
-
-          // Limit to 3 events
-          if (_upcomingEvents.length > 3) {
-            _upcomingEvents = _upcomingEvents.sublist(0, 3);
-          }
-        } else {
-          _upcomingEvents = [];
-        }
-
-        _isLoading = false;
-      });
-    } catch (e) {
-      print('Error loading dashboard data: $e');
-      setState(() {
-        _recommendedSkills = [];
-        _upcomingEvents = [];
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _loadDefaultSkills() async {
-    try {
+      // Load recommended skills
       final skillService = SkillService();
-      final response = await skillService.getSkills();
+      final skillsResponse = await skillService.getRecommendations();
 
-      if (response.success &&
-          response.data != null &&
-          response.data!.isNotEmpty) {
-        final user = Provider.of<UserProvider>(context, listen: false).user;
-
+      if (skillsResponse.success && skillsResponse.data != null) {
         setState(() {
-          if (user?.favoriteCategories != null &&
-              user!.favoriteCategories!.isNotEmpty) {
-            // Filter default skills by favorite categories
-            _recommendedSkills = response.data!
-                .where((skill) =>
-                    user.favoriteCategories!.contains(skill.category))
-                .take(4)
-                .toList();
-
-            // If we don't have enough skills from favorite categories, add more
-            if (_recommendedSkills.length < 4) {
-              final remainingSkills = response.data!
-                  .where((skill) =>
-                      !user.favoriteCategories!.contains(skill.category))
-                  .take(4 - _recommendedSkills.length)
-                  .toList();
-              _recommendedSkills.addAll(remainingSkills);
-            }
-          } else {
-            // If no favorite categories, just take the first 4 skills
-            _recommendedSkills = response.data!.take(4).toList();
-          }
-          print('Loaded ${_recommendedSkills.length} default skills');
+          _recommendedSkills = skillsResponse.data!;
         });
       } else {
         setState(() {
-          _recommendedSkills = [];
-          print('No default skills available');
+          _errorMessage =
+              skillsResponse.error ?? 'Failed to load recommended skills';
         });
       }
-    } catch (e) {
-      print('Error loading default skills: $e');
+
+      // Load upcoming events
+      final eventService = EventService();
+      final eventsResponse = await eventService.getEvents();
+
+      if (eventsResponse.success && eventsResponse.data != null) {
+        setState(() {
+          _upcomingEvents =
+              eventsResponse.data!.where((event) => event.isUpcoming).toList();
+        });
+      }
+
       setState(() {
-        _recommendedSkills = [];
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Error: ${e.toString()}';
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final currentUser = userProvider.user;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dashboard'),
@@ -194,7 +128,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     // User greeting
                     Text(
-                      'Hello, ${Provider.of<UserProvider>(context).user?.name ?? "User"}!',
+                      'Hello, ${currentUser?.name ?? "User"}!',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 8),

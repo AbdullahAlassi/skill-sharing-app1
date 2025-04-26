@@ -36,13 +36,13 @@ dependencies:
   cupertino_icons: ^1.0.2
   provider: ^6.0.5
   http: ^1.1.0
-  shared_preferences: ^2.2.0
   font_awesome_flutter: ^10.8.0
   image_picker: ^1.1.2
   google_fonts: ^6.2.1
   intl: ^0.20.2
   url_launcher: ^6.1.12
   jwt_decoder: ^2.0.1
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

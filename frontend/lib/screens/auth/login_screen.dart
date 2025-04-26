@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = AuthService(baseUrl: AppConfig.apiBaseUrl);
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
@@ -31,10 +32,8 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isLoading = true;
@@ -42,40 +41,46 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Create an instance of AuthService
-      final authService = AuthService(baseUrl: AppConfig.apiBaseUrl);
+      print('=== Starting Login Process ===');
+      print('Login Attempt:');
+      print('- Email: ${_emailController.text}');
 
-      // Call the login method
-      final response = await authService.login(
-        _emailController.text.trim(),
+      final response = await _authService.login(
+        _emailController.text,
         _passwordController.text,
       );
 
-      if (response.success) {
-        // If login is successful, load the user data using the provider
+      print('\nLogin Response:');
+      print('- Success: ${response.success}');
+      print('- Status Code: ${response.statusCode}');
+      if (!response.success) {
+        print('- Error: ${response.error}');
+      }
+
+      if (response.success && mounted) {
+        print('\nLogin successful, loading user data...');
         await Provider.of<UserProvider>(context, listen: false).loadUser();
 
-        // Navigate to home screen
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        }
+        print('User data loaded, navigating to home...');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
       } else {
-        // If login fails, show the error message
-        if (mounted) {
-          setState(() {
-            _errorMessage = response.error;
-            _isLoading = false;
-          });
-        }
+        setState(() {
+          _errorMessage = response.error ?? 'Login failed';
+        });
       }
     } catch (e) {
-      // Handle any exceptions
+      print('\nLogin Error:');
+      print('- Error type: ${e.runtimeType}');
+      print('- Error message: $e');
+      setState(() {
+        _errorMessage = e.toString();
+      });
+    } finally {
       if (mounted) {
         setState(() {
-          _errorMessage = 'An error occurred: ${e.toString()}';
           _isLoading = false;
         });
       }
@@ -103,8 +108,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     'Login to continue your learning journey',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppTheme.textSecondaryColor,
-                    ),
+                          color: AppTheme.textSecondaryColor,
+                        ),
                   ),
                   const SizedBox(height: 32),
                   if (_errorMessage != null) ...[
@@ -124,7 +129,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           Expanded(
                             child: Text(
                               _errorMessage!,
-                              style: Theme.of(context).textTheme.bodyMedium
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
                                   ?.copyWith(color: AppTheme.errorColor),
                             ),
                           ),
@@ -190,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 24),
                   CustomButton(
                     text: 'Login',
-                    onPressed: _handleLogin,
+                    onPressed: _login,
                     isLoading: _isLoading,
                   ),
                   const SizedBox(height: 24),

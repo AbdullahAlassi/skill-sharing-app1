@@ -21,7 +21,7 @@ class SectionHeader extends StatelessWidget {
         if (onViewAll != null)
           TextButton(
             onPressed: onViewAll,
-            child: Text(
+            child: const Text(
               'View All',
               style: TextStyle(
                 color: AppTheme.primaryColor,

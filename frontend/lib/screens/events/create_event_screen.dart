@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/skill_model.dart';
@@ -29,14 +30,35 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   List<String> _selectedSkills = [];
   List<Skill> _userSkills = [];
   bool _isLoading = false;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    _loadUserSkills();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _loadUserSkills();
+    }
+  }
+
+  void _showSnackBar(String message) {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+    });
   }
 
   Future<void> _loadUserSkills() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
@@ -46,12 +68,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       final currentUser = userProvider.user;
 
       if (currentUser == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please login to create an event')),
-          );
-          Navigator.pop(context);
-        }
+        _showSnackBar('Please login to create an event');
+        Navigator.pop(context);
         return;
       }
 
@@ -67,21 +85,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         setState(() {
           _isLoading = false;
         });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(response.error ?? 'Failed to load skills')),
-          );
-        }
+        _showSnackBar(response.error ?? 'Failed to load skills');
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-      }
+      _showSnackBar('Error: ${e.toString()}');
     }
   }
 
@@ -177,215 +187,213 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         title: const Text('Create Event'),
         backgroundColor: AppTheme.primaryColor,
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title
-                      TextFormField(
-                        controller: _titleController,
-                        decoration: const InputDecoration(
-                          labelText: 'Title',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter a title';
-                          }
-                          return null;
-                        },
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    TextFormField(
+                      controller: _titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        border: OutlineInputBorder(),
                       ),
-                      const SizedBox(height: 16),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a title';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
 
-                      // Description
-                      TextFormField(
-                        controller: _descriptionController,
-                        decoration: const InputDecoration(
-                          labelText: 'Description',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 3,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter a description';
-                          }
-                          return null;
-                        },
+                    // Description
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
                       ),
-                      const SizedBox(height: 16),
+                      maxLines: 3,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a description';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
 
-                      // Date and Time
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ListTile(
-                              title: Text(
-                                _selectedDate == null
-                                    ? 'Select Date & Time'
-                                    : DateFormat(
+                    // Date and Time
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ListTile(
+                            title: Text(
+                              _selectedDate == null
+                                  ? 'Select Date & Time'
+                                  : DateFormat(
                                       'MMM d, y • h:mm a',
                                     ).format(_selectedDate!),
-                              ),
-                              onTap: () => _selectDate(context, false),
                             ),
+                            onTap: () => _selectDate(context, false),
                           ),
-                          if (_selectedDate != null)
-                            IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                setState(() {
-                                  _selectedDate = null;
-                                });
-                              },
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
+                        ),
+                        if (_selectedDate != null)
+                          IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() {
+                                _selectedDate = null;
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
 
-                      // End Date (Optional)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ListTile(
-                              title: Text(
-                                _selectedEndDate == null
-                                    ? 'Select End Date & Time (Optional)'
-                                    : DateFormat(
+                    // End Date (Optional)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ListTile(
+                            title: Text(
+                              _selectedEndDate == null
+                                  ? 'Select End Date & Time (Optional)'
+                                  : DateFormat(
                                       'MMM d, y • h:mm a',
                                     ).format(_selectedEndDate!),
-                              ),
-                              onTap: () => _selectDate(context, true),
                             ),
-                          ),
-                          if (_selectedEndDate != null)
-                            IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                setState(() {
-                                  _selectedEndDate = null;
-                                });
-                              },
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Location
-                      TextFormField(
-                        controller: _locationController,
-                        decoration: const InputDecoration(
-                          labelText: 'Location',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter a location';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Virtual Event Toggle
-                      SwitchListTile(
-                        title: const Text('Virtual Event'),
-                        value: _isVirtual,
-                        onChanged: (value) {
-                          setState(() {
-                            _isVirtual = value;
-                          });
-                        },
-                      ),
-
-                      // Meeting Link (if virtual)
-                      if (_isVirtual) ...[
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _meetingLinkController,
-                          decoration: const InputDecoration(
-                            labelText: 'Meeting Link',
-                            border: OutlineInputBorder(),
+                            onTap: () => _selectDate(context, true),
                           ),
                         ),
+                        if (_selectedEndDate != null)
+                          IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() {
+                                _selectedEndDate = null;
+                              });
+                            },
+                          ),
                       ],
-                      const SizedBox(height: 16),
+                    ),
+                    const SizedBox(height: 16),
 
-                      // Max Participants
+                    // Location
+                    TextFormField(
+                      controller: _locationController,
+                      decoration: const InputDecoration(
+                        labelText: 'Location',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a location';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Virtual Event Toggle
+                    SwitchListTile(
+                      title: const Text('Virtual Event'),
+                      value: _isVirtual,
+                      onChanged: (value) {
+                        setState(() {
+                          _isVirtual = value;
+                        });
+                      },
+                    ),
+
+                    // Meeting Link (if virtual)
+                    if (_isVirtual) ...[
+                      const SizedBox(height: 16),
                       TextFormField(
-                        controller: _maxParticipantsController,
+                        controller: _meetingLinkController,
                         decoration: const InputDecoration(
-                          labelText: 'Max Participants (Optional)',
+                          labelText: 'Meeting Link',
                           border: OutlineInputBorder(),
                         ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value != null &&
-                              value.isNotEmpty &&
-                              int.tryParse(value) == null) {
-                            return 'Please enter a valid number';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Related Skills
-                      const Text(
-                        'Related Skills',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_userSkills.isEmpty)
-                        const Text(
-                          'No skills available. Please add skills to your profile first.',
-                          style: TextStyle(color: Colors.grey),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children:
-                              _userSkills.map((skill) {
-                                final isSelected = _selectedSkills.contains(
-                                  skill.name,
-                                );
-                                return FilterChip(
-                                  label: Text(skill.name),
-                                  selected: isSelected,
-                                  onSelected: (selected) {
-                                    setState(() {
-                                      if (selected) {
-                                        _selectedSkills.add(skill.name);
-                                      } else {
-                                        _selectedSkills.remove(skill.name);
-                                      }
-                                    });
-                                  },
-                                );
-                              }).toList(),
-                        ),
-                      const SizedBox(height: 24),
-
-                      // Create Button
-                      CustomButton(
-                        text: 'Create Event',
-                        onPressed: _createEvent,
-                        isLoading: _isLoading,
-                        type: ButtonType.primary,
                       ),
                     ],
-                  ),
+                    const SizedBox(height: 16),
+
+                    // Max Participants
+                    TextFormField(
+                      controller: _maxParticipantsController,
+                      decoration: const InputDecoration(
+                        labelText: 'Max Participants (Optional)',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value != null &&
+                            value.isNotEmpty &&
+                            int.tryParse(value) == null) {
+                          return 'Please enter a valid number';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Related Skills
+                    const Text(
+                      'Related Skills',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_userSkills.isEmpty)
+                      const Text(
+                        'No skills available. Please add skills to your profile first.',
+                        style: TextStyle(color: Colors.grey),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _userSkills.map((skill) {
+                          final isSelected = _selectedSkills.contains(
+                            skill.name,
+                          );
+                          return FilterChip(
+                            label: Text(skill.name),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedSkills.add(skill.name);
+                                } else {
+                                  _selectedSkills.remove(skill.name);
+                                }
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    const SizedBox(height: 24),
+
+                    // Create Button
+                    CustomButton(
+                      text: 'Create Event',
+                      onPressed: _createEvent,
+                      isLoading: _isLoading,
+                      type: ButtonType.primary,
+                    ),
+                  ],
                 ),
               ),
+            ),
     );
   }
 
