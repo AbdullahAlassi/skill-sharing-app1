@@ -2,337 +2,242 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../utils/token_storage.dart';
-
-class ApiResponse<T> {
-  final bool success;
-  final T? data;
-  final String? error;
-  final int statusCode;
-  final String? body;
-
-  ApiResponse({
-    required this.success,
-    this.data,
-    this.error,
-    required this.statusCode,
-    this.body,
-  });
-}
+import '../utils/api_response.dart';
 
 class ApiClient {
   final String baseUrl;
+  final http.Client _client;
 
-  ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
+  ApiClient({
+    required this.baseUrl,
+    http.Client? client,
+  }) : _client = client ?? http.Client();
 
-  // Helper method to get headers with auth token
-  Future<Map<String, String>> _getHeaders() async {
+  Future<String?> getToken() async {
     final token = await TokenStorage.getToken();
-    print("Auth token: ${token != null ? 'Present' : 'Missing'}");
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
+    if (token == null) {
+      print('[ApiClient] No token available for request');
+      return null;
+    }
+
+    // Verify token is not expired
+    if (await TokenStorage.isTokenExpired(token)) {
+      print('[ApiClient] Token is expired, clearing...');
+      await TokenStorage.clearToken();
+      return null;
+    }
+
+    print('[ApiClient] Retrieved fresh token: $token');
+    return token;
   }
 
-  // GET request for a single item or a list
   Future<ApiResponse<T>> get<T>(
     String endpoint,
-    T Function(dynamic, String) fromJson, // Keep as dynamic to be flexible
-  ) async {
-    try {
-      print("GET request to: $baseUrl/$endpoint");
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/$endpoint'),
-        headers: headers,
-      );
-
-      print("GET response status: ${response.statusCode}");
-      if (response.body.isNotEmpty) {
-        print(
-          "GET response body: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...",
-        );
-      }
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        try {
-          // Pass the raw response body string
-          final data = fromJson(response.body, endpoint);
-          return ApiResponse<T>(
-            success: true,
-            data: data,
-            error: null,
-            statusCode: response.statusCode,
-            body: response.body,
-          );
-        } catch (e) {
-          print("GET parsing error: $e");
-          return ApiResponse<T>(
-            success: false,
-            data: null,
-            error: "Error parsing response: $e",
-            statusCode: response.statusCode,
-            body: response.body,
-          );
-        }
-      } else {
-        // Rest of the method remains the same
-        String errorMsg;
-        try {
-          final jsonData = jsonDecode(response.body);
-          errorMsg =
-              jsonData['message'] ??
-              'Request failed with status ${response.statusCode}';
-        } catch (e) {
-          errorMsg = 'Request failed with status ${response.statusCode}';
-        }
-        print("GET error: $errorMsg");
-        return ApiResponse<T>(
-          success: false,
-          data: null,
-          error: errorMsg,
-          statusCode: response.statusCode,
-          body: response.body,
-        );
-      }
-    } catch (e) {
-      print("GET exception: $e");
-      return ApiResponse<T>(
-        success: false,
-        data: null,
-        error: e.toString(),
-        statusCode: 0,
-        body: null,
-      );
-    }
+    T Function(dynamic json) fromJson, {
+    bool requiresAuth = true,
+  }) async {
+    final url = '$baseUrl/$endpoint';
+    print('\n[ApiClient] Making GET Request to: $endpoint');
+    print('[ApiClient] Final URL: $url');
+    return _handleRequest<T>(
+      () async => await _client.get(
+        Uri.parse(url),
+        headers: await _getHeaders(requiresAuth),
+      ),
+      fromJson,
+    );
   }
 
-  // POST request
   Future<ApiResponse<T>> post<T>(
     String endpoint,
     Map<String, dynamic> data,
-    T Function(dynamic, String) fromJson,
-  ) async {
-    try {
-      print("POST request to: $baseUrl/$endpoint");
-      print("POST data: $data");
-      final headers = await _getHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/$endpoint'),
-        headers: headers,
-        body: jsonEncode(data),
-      );
-
-      print("POST response status: ${response.statusCode}");
-      if (response.body.isNotEmpty) {
-        print(
-          "POST response body: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...",
-        );
-      }
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        try {
-          final result = fromJson(response.body, endpoint);
-          return ApiResponse<T>(
-            success: true,
-            data: result,
-            error: null,
-            statusCode: response.statusCode,
-            body: response.body,
-          );
-        } catch (e) {
-          print("POST parsing error: $e");
-          return ApiResponse<T>(
-            success: false,
-            data: null,
-            error: "Error parsing response: $e",
-            statusCode: response.statusCode,
-            body: response.body,
-          );
-        }
-      } else {
-        String errorMsg;
-        try {
-          final jsonData = jsonDecode(response.body);
-          errorMsg =
-              jsonData['message'] ??
-              'Request failed with status ${response.statusCode}';
-        } catch (e) {
-          errorMsg = 'Request failed with status ${response.statusCode}';
-        }
-        print("POST error: $errorMsg");
-        return ApiResponse<T>(
-          success: false,
-          data: null,
-          error: errorMsg,
-          statusCode: response.statusCode,
-          body: response.body,
-        );
-      }
-    } catch (e) {
-      print("POST exception: $e");
-      return ApiResponse<T>(
-        success: false,
-        data: null,
-        error: e.toString(),
-        statusCode: 0,
-        body: null,
-      );
-    }
+    T Function(dynamic json) fromJson, {
+    bool requiresAuth = true,
+  }) async {
+    final url = '$baseUrl/$endpoint';
+    print('\n[ApiClient] Making POST Request to: $endpoint');
+    print('[ApiClient] Final URL: $url');
+    print('[ApiClient] Request body: $data');
+    return _handleRequest<T>(
+      () async => await _client.post(
+        Uri.parse(url),
+        headers: await _getHeaders(requiresAuth),
+        body: json.encode(data),
+      ),
+      fromJson,
+    );
   }
 
-  // PUT request
   Future<ApiResponse<T>> put<T>(
     String endpoint,
     Map<String, dynamic> data,
-    T Function(dynamic, String) fromJson,
+    T Function(dynamic json) fromJson, {
+    bool requiresAuth = true,
+  }) async {
+    final url = '$baseUrl/$endpoint';
+    print('\n[ApiClient] Making PUT Request to: $endpoint');
+    print('[ApiClient] Final URL: $url');
+    print('[ApiClient] Request body: $data');
+    return _handleRequest<T>(
+      () async => await _client.put(
+        Uri.parse(url),
+        headers: await _getHeaders(requiresAuth),
+        body: json.encode(data),
+      ),
+      fromJson,
+    );
+  }
+
+  Future<ApiResponse<T>> delete<T>(
+    String endpoint,
+    T Function(dynamic json) fromJson, {
+    bool requiresAuth = true,
+  }) async {
+    final url = '$baseUrl/$endpoint';
+    print('\n[ApiClient] Making DELETE Request to: $endpoint');
+    print('[ApiClient] Final URL: $url');
+    return _handleRequest<T>(
+      () async => await _client.delete(
+        Uri.parse(url),
+        headers: await _getHeaders(requiresAuth),
+      ),
+      fromJson,
+    );
+  }
+
+  Future<http.Response> rawPut(
+    String endpoint,
+    Map<String, dynamic> data, {
+    bool requiresAuth = true,
+  }) async {
+    final url = '$baseUrl/$endpoint';
+    print('\n[ApiClient] Making raw PUT Request to: $endpoint');
+    print('[ApiClient] Final URL: $url');
+    print('[ApiClient] Request body: $data');
+    final headers = await _getHeaders(requiresAuth);
+    return await _client.put(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode(data),
+    );
+  }
+
+  Future<Map<String, String>> _getHeaders(bool requiresAuth) async {
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    if (requiresAuth) {
+      final token = await getToken();
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+        print('[ApiClient] Using token: $token');
+      } else {
+        print('[ApiClient] No token available for authenticated request');
+      }
+    }
+
+    return headers;
+  }
+
+  Future<ApiResponse<T>> _handleRequest<T>(
+    Future<http.Response> Function() requestFunction,
+    T Function(dynamic json) fromJson,
   ) async {
     try {
-      print("PUT request to: $baseUrl/$endpoint");
-      print("PUT data: $data");
-      final headers = await _getHeaders();
-      final response = await http.put(
-        Uri.parse('$baseUrl/$endpoint'),
-        headers: headers,
-        body: jsonEncode(data),
+      final response = await requestFunction();
+      final statusCode = response.statusCode;
+      final rawBody = response.body;
+
+      print('[ApiClient] Status Code: $statusCode');
+      print('[ApiClient] Raw Response Body: $rawBody');
+
+      // Handle error responses
+      if (statusCode >= 400) {
+        final parsedJson = json.decode(rawBody);
+        final errorMessage = parsedJson is Map<String, dynamic>
+            ? parsedJson['message'] ?? 'Request failed'
+            : 'Request failed';
+        return ApiResponse<T>.error(
+          errorMessage,
+          statusCode: statusCode,
+        );
+      }
+
+      final parsedJson = json.decode(rawBody);
+
+      // Pass the entire parsedJson to fromJson. The fromJson function
+      // is responsible for handling the specific structure (e.g., unwrapping 'data').
+      final T data = fromJson(parsedJson);
+
+      print('[ApiClient] Parsed data type: ${data.runtimeType}');
+      // Avoid printing large data payloads to prevent log spam
+      // print('[ApiClient] Parsed data content: $data');
+
+      return ApiResponse<T>.success(
+        data: data,
+        statusCode: statusCode,
+        message: parsedJson is Map<String, dynamic> &&
+                parsedJson.containsKey('message')
+            ? parsedJson['message']
+            : 'Success',
       );
-
-      print("PUT response status: ${response.statusCode}");
-      if (response.body.isNotEmpty) {
-        print(
-          "PUT response body: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...",
-        );
-      }
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        try {
-          final result = fromJson(response.body, endpoint);
-          return ApiResponse<T>(
-            success: true,
-            data: result,
-            error: null,
-            statusCode: response.statusCode,
-            body: response.body,
-          );
-        } catch (e) {
-          print("PUT parsing error: $e");
-          return ApiResponse<T>(
-            success: false,
-            data: null,
-            error: "Error parsing response: $e",
-            statusCode: response.statusCode,
-            body: response.body,
-          );
-        }
-      } else {
-        String errorMsg;
-        try {
-          final jsonData = jsonDecode(response.body);
-          errorMsg =
-              jsonData['message'] ??
-              'Request failed with status ${response.statusCode}';
-        } catch (e) {
-          errorMsg = 'Request failed with status ${response.statusCode}';
-        }
-        print("PUT error: $errorMsg");
-        return ApiResponse<T>(
-          success: false,
-          data: null,
-          error: errorMsg,
-          statusCode: response.statusCode,
-          body: response.body,
-        );
-      }
     } catch (e) {
-      print("PUT exception: $e");
-      return ApiResponse<T>(
-        success: false,
-        data: null,
-        error: e.toString(),
-        statusCode: 0,
-        body: null,
+      print('[ApiClient] Error in _handleRequest: $e');
+      return ApiResponse<T>.error(
+        'Request failed: ${e.toString()}',
+        statusCode: 500,
       );
     }
   }
 
-  // DELETE request
-  Future<ApiResponse<T>> delete<T>(
-    String endpoint,
-    T Function(dynamic, String) fromJson,
-  ) async {
+  Future<ApiResponse<Map<String, dynamic>>> debugTokenCheck() async {
+    print('\n[ApiClient] Making debug token check request');
     try {
-      print("DELETE request to: $baseUrl/$endpoint");
-      final headers = await _getHeaders();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/$endpoint'),
-        headers: headers,
-      );
-
-      print("DELETE response status: ${response.statusCode}");
-      if (response.body.isNotEmpty) {
-        print(
-          "DELETE response body: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...",
+      final token = await getToken();
+      if (token == null) {
+        print('[ApiClient] No token found for debug check');
+        return ApiResponse<Map<String, dynamic>>.error(
+          'No token found',
+          statusCode: 401,
         );
       }
 
+      final url = '$baseUrl/users/debug-token';
+      print('[ApiClient] Final URL: $url');
+      final response = await _client.get(
+        Uri.parse(url),
+        headers: await _getHeaders(true),
+      );
+
+      print('[ApiClient] Debug token response: ${response.body}');
+      final body = json.decode(response.body);
+
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        if (response.body.isEmpty) {
-          // Some DELETE endpoints return empty body
-          return ApiResponse<T>(
-            success: true,
-            data: {} as T,
-            error: null,
-            statusCode: response.statusCode,
-            body: response.body,
-          );
-        }
-        try {
-          final result = fromJson(response.body, endpoint);
-          return ApiResponse<T>(
-            success: true,
-            data: result,
-            error: null,
-            statusCode: response.statusCode,
-            body: response.body,
-          );
-        } catch (e) {
-          print("DELETE parsing error: $e");
-          return ApiResponse<T>(
-            success: false,
-            data: null,
-            error: "Error parsing response: $e",
-            statusCode: response.statusCode,
-            body: response.body,
-          );
-        }
-      } else {
-        String errorMsg;
-        try {
-          final jsonData = jsonDecode(response.body);
-          errorMsg =
-              jsonData['message'] ??
-              'Request failed with status ${response.statusCode}';
-        } catch (e) {
-          errorMsg = 'Request failed with status ${response.statusCode}';
-        }
-        print("DELETE error: $errorMsg");
-        return ApiResponse<T>(
-          success: false,
-          data: null,
-          error: errorMsg,
+        return ApiResponse<Map<String, dynamic>>.success(
+          data: body,
+          message: 'Token verified successfully',
           statusCode: response.statusCode,
-          body: response.body,
+        );
+      } else {
+        final message = body['message'] ?? 'Failed to verify token';
+        print('[ApiClient] Debug token check failed: $message');
+        return ApiResponse<Map<String, dynamic>>.error(
+          message,
+          statusCode: response.statusCode,
         );
       }
     } catch (e) {
-      print("DELETE exception: $e");
-      return ApiResponse<T>(
-        success: false,
-        data: null,
-        error: e.toString(),
-        statusCode: 0,
-        body: null,
+      print('[ApiClient] Debug token check exception: $e');
+      return ApiResponse<Map<String, dynamic>>.error(
+        e.toString(),
+        statusCode: 500,
       );
     }
+  }
+
+  void dispose() {
+    _client.close();
   }
 }

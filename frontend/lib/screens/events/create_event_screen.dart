@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:skill_sharing_app/widget/custome_button.dart';
 import '../../models/skill_model.dart';
 import '../../services/event_service.dart';
 import '../../services/skill_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/user_provider.dart';
-import 'package:frontend/widget/custome_button.dart';
 
 class CreateEventScreen extends StatefulWidget {
   const CreateEventScreen({super.key});
@@ -343,45 +343,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-
-                    // Related Skills
-                    const Text(
-                      'Related Skills',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_userSkills.isEmpty)
-                      const Text(
-                        'No skills available. Please add skills to your profile first.',
-                        style: TextStyle(color: Colors.grey),
-                      )
-                    else
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _userSkills.map((skill) {
-                          final isSelected = _selectedSkills.contains(
-                            skill.name,
-                          );
-                          return FilterChip(
-                            label: Text(skill.name),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              setState(() {
-                                if (selected) {
-                                  _selectedSkills.add(skill.name);
-                                } else {
-                                  _selectedSkills.remove(skill.name);
-                                }
-                              });
-                            },
-                          );
-                        }).toList(),
-                      ),
-                    const SizedBox(height: 24),
 
                     // Create Button
                     CustomButton(

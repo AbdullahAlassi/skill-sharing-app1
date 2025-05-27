@@ -50,11 +50,36 @@ const UserSchema = new mongoose.Schema({
   }],
   createdSkills: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Skill'
+    ref: 'Skill',
+    required: true
   }],
   createdAt: {
     type: Date,
     default: Date.now
+  }
+});
+
+// Add index for faster queries
+UserSchema.index({ email: 1 });
+UserSchema.index({ createdSkills: 1 });
+
+// Add method to compare password
+UserSchema.methods.comparePassword = async function(candidatePassword) {
+  const bcrypt = require('bcryptjs');
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Add pre-save middleware to hash password
+UserSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  
+  try {
+    const bcrypt = require('bcryptjs');
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
   }
 });
 

@@ -1,23 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:skill_sharing_app/screens/profile/edit_profile_screen.dart';
+import 'package:skill_sharing_app/screens/profile/profile_screen.dart';
+import '../../models/skill_category.dart';
+import '../../providers/user_provider.dart';
 import '../../services/skill_service.dart';
 import '../../theme/app_theme.dart';
-import '../home/home_screen.dart';
+import '../../widget/custome_button.dart';
+
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../utils/token_storage.dart';
 import '../../config/app_config.dart';
 
 class FavoriteCategoriesScreen extends StatefulWidget {
-  const FavoriteCategoriesScreen({super.key});
+  const FavoriteCategoriesScreen({Key? key}) : super(key: key);
 
   @override
-  State<FavoriteCategoriesScreen> createState() =>
+  _FavoriteCategoriesScreenState createState() =>
       _FavoriteCategoriesScreenState();
 }
 
 class _FavoriteCategoriesScreenState extends State<FavoriteCategoriesScreen> {
-  final List<String> _selectedCategories = [];
-  List<String> _categories = [];
+  final _skillService = SkillService();
+  List<SkillCategory> _categories = [];
+  List<String> _selectedCategories = [];
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -34,91 +41,56 @@ class _FavoriteCategoriesScreenState extends State<FavoriteCategoriesScreen> {
     });
 
     try {
-      final skillService = SkillService();
-      final response = await skillService.getCategories();
-
-      if (response.success && response.data != null) {
+      final categories = await _skillService.getCategories();
+      if (mounted) {
         setState(() {
-          _categories = response.data!;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _errorMessage = response.error ?? 'Failed to load categories';
+          _categories = categories.data ?? [];
+          // Initialize selected categories from user's preferences
+          final userProvider =
+              Provider.of<UserProvider>(context, listen: false);
+          if (userProvider.user?.favoriteCategories != null) {
+            _selectedCategories = userProvider.user!.favoriteCategories!;
+          }
           _isLoading = false;
         });
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _toggleCategory(String category) {
-    setState(() {
-      if (_selectedCategories.contains(category)) {
-        _selectedCategories.remove(category);
-      } else if (_selectedCategories.length < 5) {
-        _selectedCategories.add(category);
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
       }
-    });
+    }
   }
 
-  Future<void> _savePreferences() async {
-    if (_selectedCategories.length < 3) {
-      setState(() {
-        _errorMessage = 'Please select at least 3 categories';
-      });
-      return;
-    }
-
+  Future<void> _saveCategories() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final token = await TokenStorage.getToken();
-      if (token == null) {
-        setState(() {
-          _errorMessage = 'Authentication error. Please try logging in again.';
-          _isLoading = false;
-        });
-        return;
-      }
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      await userProvider.updateFavoriteCategories(_selectedCategories);
 
-      final response = await http.put(
-        Uri.parse('${AppConfig.apiBaseUrl}/users/preferences'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'favoriteCategories': _selectedCategories,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
+      if (mounted) {
+        if (userProvider.error != null) {
+          setState(() {
+            _errorMessage = userProvider.error;
+            _isLoading = false;
+          });
+        } else {
+          Navigator.pop(context);
         }
-      } else {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _errorMessage = data['message'] ?? 'Failed to save preferences';
-          _isLoading = false;
-        });
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Error saving preferences: ${e.toString()}';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -126,110 +98,74 @@ class _FavoriteCategoriesScreenState extends State<FavoriteCategoriesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Select Your Interests'),
-        automaticallyImplyLeading: false,
+        title: const Text('Favorite Categories'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Text(
-                    'What are you interested in?',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Select 3-5 categories that interest you. We\'ll use these to recommend relevant skills.',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppTheme.textSecondaryColor,
-                        ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Error message
-                  if (_errorMessage != null)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _errorMessage!,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.error_outline, color: Colors.red),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: const TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 16),
+                      CustomButton(
+                        text: 'Retry',
+                        onPressed: () {
+                          _loadCategories();
+                        },
                       ),
-                    ),
-
-                  // Categories grid
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _categories.map((category) {
-                      final isSelected = _selectedCategories.contains(category);
-                      return FilterChip(
-                        label: Text(category),
-                        selected: isSelected,
-                        onSelected: (selected) => _toggleCategory(category),
-                        backgroundColor: Colors.white,
-                        selectedColor: AppTheme.primaryColor.withOpacity(0.1),
-                        checkmarkColor: AppTheme.primaryColor,
-                        labelStyle: TextStyle(
-                          color: isSelected
-                              ? AppTheme.primaryColor
-                              : AppTheme.textPrimaryColor,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                      );
-                    }).toList(),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-
-                  // Selection count
-                  Text(
-                    'Selected: ${_selectedCategories.length}/5',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: _selectedCategories.length < 3
-                              ? Colors.red
-                              : Colors.green,
-                        ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Continue button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _savePreferences,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Select your favorite categories to get personalized recommendations',
+                        style: TextStyle(fontSize: 16),
                       ),
-                      child: const Text(
-                        'Continue',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                      const SizedBox(height: 24),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: _categories.length,
+                          itemBuilder: (context, index) {
+                            final category = _categories[index];
+                            return CheckboxListTile(
+                              title: Text(category.name),
+                              value:
+                                  _selectedCategories.contains(category.name),
+                              onChanged: (bool? value) {
+                                setState(() {
+                                  if (value == true) {
+                                    _selectedCategories.add(category.name);
+                                  } else {
+                                    _selectedCategories.remove(category.name);
+                                  }
+                                });
+                              },
+                            );
+                          },
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      CustomButton(
+                        text: 'Save Preferences',
+                        onPressed: _selectedCategories.isEmpty
+                            ? null
+                            : () {
+                                _saveCategories();
+                              },
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
     );
   }
 }

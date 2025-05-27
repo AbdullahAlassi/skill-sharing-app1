@@ -4,7 +4,7 @@ class Progress {
   final String userId;
   final String goal;
   final DateTime? targetDate;
-  final int progress;
+  final double progress;
   final List<Milestone>? milestones;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -22,30 +22,40 @@ class Progress {
   });
 
   factory Progress.fromJson(Map<String, dynamic> json) {
+    print('[DEBUG] Progress JSON: $json');
+    print('Progress progress: ${(json['progress'] as num?)?.toDouble()}');
+
+    // Handle milestones with proper type checking
+    List<Milestone>? parsedMilestones;
+    if (json['milestones'] != null) {
+      if (json['milestones'] is List) {
+        parsedMilestones = List<Milestone>.from(
+          json['milestones']
+              .map((x) => Milestone.fromJson(x as Map<String, dynamic>)),
+        );
+      } else {
+        print(
+            '[DEBUG] Warning: milestones is not a List: ${json['milestones']}');
+        parsedMilestones = [];
+      }
+    }
+
     return Progress(
       id: json['_id'] ?? json['id'] ?? '',
       skillId: json['skillId'] ?? '',
       userId: json['userId'] ?? '',
       goal: json['goal'] ?? '',
-      targetDate:
-          json['targetDate'] != null
-              ? DateTime.parse(json['targetDate'])
-              : null,
-      progress: json['progress'] ?? 0,
-      milestones:
-          json['milestones'] != null
-              ? List<Milestone>.from(
-                json['milestones'].map((x) => Milestone.fromJson(x)),
-              )
-              : null,
-      createdAt:
-          json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'])
-              : DateTime.now(),
-      updatedAt:
-          json['updatedAt'] != null
-              ? DateTime.parse(json['updatedAt'])
-              : DateTime.now(),
+      targetDate: json['targetDate'] != null
+          ? DateTime.parse(json['targetDate'])
+          : null,
+      progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
+      milestones: parsedMilestones,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
+          : DateTime.now(),
     );
   }
 
@@ -85,10 +95,9 @@ class Milestone {
       title: json['title'] ?? '',
       description: json['description'],
       completed: json['completed'] ?? false,
-      createdAt:
-          json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'])
-              : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
     );
   }
 

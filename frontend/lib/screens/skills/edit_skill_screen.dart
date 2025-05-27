@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:skill_sharing_app/widget/custome_button.dart';
+import 'package:skill_sharing_app/widget/custome_text.dart';
 import '../../models/skill_model.dart';
 import '../../models/skill_proficiency_model.dart';
 import '../../services/skill_service.dart';
 import '../../theme/app_theme.dart';
-import 'package:frontend/widget/custome_button.dart';
-import 'package:frontend/widget/custome_text.dart';
+import 'package:provider/provider.dart';
+import '../../providers/skill_category_provider.dart';
+import '../../models/skill_category.dart';
 
 class EditSkillScreen extends StatefulWidget {
   final Skill skill;
@@ -21,13 +24,11 @@ class _EditSkillScreenState extends State<EditSkillScreen> {
   final _descriptionController = TextEditingController();
 
   String? _selectedCategory;
-  List<String> _categories = [];
   List<Skill> _allSkills = [];
   final List<String> _selectedRelatedSkills = [];
   ProficiencyLevel _selectedProficiency = ProficiencyLevel.beginner;
 
   bool _isLoading = false;
-  bool _isCategoriesLoading = true;
   bool _isSkillsLoading = true;
   String? _errorMessage;
 
@@ -38,13 +39,28 @@ class _EditSkillScreenState extends State<EditSkillScreen> {
     super.initState();
     _skillService = SkillService();
     _initializeForm();
-    _loadCategoriesAndSkills();
+    _loadSkills();
+
+    // Load categories
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<SkillCategoryProvider>(context, listen: false)
+          .fetchCategories();
+    });
   }
 
   void _initializeForm() {
     _nameController.text = widget.skill.name;
     _descriptionController.text = widget.skill.description;
-    _selectedCategory = widget.skill.category;
+
+    // Get category ID from the skill's category
+    if (widget.skill.category is Map<String, dynamic>) {
+      final categoryMap = widget.skill.category as Map<String, dynamic>;
+      _selectedCategory =
+          categoryMap['_id']?.toString() ?? categoryMap['id']?.toString();
+    } else if (widget.skill.category is String) {
+      _selectedCategory = widget.skill.category as String;
+    }
+
     _selectedRelatedSkills.addAll(widget.skill.relatedSkills);
     if (widget.skill.proficiency != null) {
       _selectedProficiency = ProficiencyLevel.values.firstWhere(
@@ -63,41 +79,52 @@ class _EditSkillScreenState extends State<EditSkillScreen> {
     super.dispose();
   }
 
-  Future<void> _loadCategoriesAndSkills() async {
+  Future<void> _loadSkills() async {
     setState(() {
-      _isCategoriesLoading = true;
       _isSkillsLoading = true;
+      _allSkills = []; // Clear previous skills
     });
 
-    await _loadCategories();
-    await _loadSkills();
-  }
-
-  Future<void> _loadCategories() async {
     try {
-      final response = await _skillService.getCategories();
-      if (response.success && response.data != null) {
-        setState(() {
-          _categories = response.data!;
-          _isCategoriesLoading = false;
-        });
+      if (_selectedCategory != null) {
+        // Use getSkillsByCategory to fetch skills for the selected category
+        final response =
+            await _skillService.getSkillsByCategory(_selectedCategory!);
+        if (response.success && response.data != null) {
+          setState(() {
+            _allSkills = response.data!;
+            _isSkillsLoading = false;
+          });
+        } else {
+          setState(() {
+            _allSkills = [];
+            _isSkillsLoading = false;
+          });
+        }
       } else {
         setState(() {
-          _categories = SkillService.defaultCategories;
-          _isCategoriesLoading = false;
+          _allSkills = [];
+          _isSkillsLoading = false;
         });
       }
     } catch (e) {
+      print('Error loading skills: $e');
       setState(() {
-        _categories = SkillService.defaultCategories;
-        _isCategoriesLoading = false;
+        _allSkills = [];
+        _isSkillsLoading = false;
       });
     }
   }
 
-  Future<void> _loadSkills() async {
+  // Add a new method to load skills when category changes
+  Future<void> _loadSkillsByCategory(String categoryId) async {
+    setState(() {
+      _isSkillsLoading = true;
+      _allSkills = []; // Clear previous skills
+    });
+
     try {
-      final response = await _skillService.getSkills();
+      final response = await _skillService.getSkillsByCategory(categoryId);
       if (response.success && response.data != null) {
         setState(() {
           _allSkills = response.data!;
@@ -110,6 +137,7 @@ class _EditSkillScreenState extends State<EditSkillScreen> {
         });
       }
     } catch (e) {
+      print("Error loading skills by category: $e");
       setState(() {
         _allSkills = [];
         _isSkillsLoading = false;
@@ -244,56 +272,73 @@ class _EditSkillScreenState extends State<EditSkillScreen> {
               const SizedBox(height: 16),
 
               // Category dropdown
-              _isCategoriesLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Category",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+              Consumer<SkillCategoryProvider>(
+                builder: (context, categoryProvider, child) {
+                  if (categoryProvider.isLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (categoryProvider.error != null) {
+                    return Text('Error: ${categoryProvider.error}');
+                  }
+
+                  final categories = categoryProvider.categories;
+                  if (categories.isEmpty) {
+                    return const Text('No categories available');
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Category",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _selectedCategory,
+                            isExpanded: true,
+                            hint: const Text("Select a category"),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            items: categories.map((category) {
+                              return DropdownMenuItem<String>(
+                                value: category.id,
+                                child: Text(category.name),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedCategory = value;
+                                  // Load skills based on the selected category
+                                  _loadSkillsByCategory(value);
+                                });
+                              }
+                            },
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _selectedCategory,
-                              isExpanded: true,
-                              hint: Text("Select a category"),
-                              padding: EdgeInsets.symmetric(horizontal: 12),
-                              items: _categories.map((category) {
-                                return DropdownMenuItem(
-                                  value: category,
-                                  child: Text(category),
-                                );
-                              }).toList(),
-                              onChanged: (value) {
-                                if (value != null) {
-                                  setState(() {
-                                    _selectedCategory = value;
-                                  });
-                                }
-                              },
-                            ),
+                      ),
+                      if (_selectedCategory == null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            'Please select a category',
+                            style: TextStyle(color: Colors.red, fontSize: 12),
                           ),
                         ),
-                        if (_selectedCategory == null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(
-                              'Please select a category',
-                              style: TextStyle(color: Colors.red, fontSize: 12),
-                            ),
-                          ),
-                      ],
-                    ),
+                    ],
+                  );
+                },
+              ),
               const SizedBox(height: 16),
 
               // Proficiency Level Selection

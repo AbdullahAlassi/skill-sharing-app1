@@ -1,21 +1,70 @@
 const { validationResult } = require("express-validator")
 const Event = require("../models/Event")
 const Skill = require("../models/Skill")
+const mongoose = require("mongoose")
+const crypto = require('crypto')
+const NotificationService = require('../services/notificationService')
+const Notification = require('../models/Notification')
+
+// Utility function to generate a secure 6-character alphanumeric code
+const generateAttendanceCode = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let code = ''
+  for (let i = 0; i < 6; i++) {
+    const randomIndex = crypto.randomInt(0, chars.length)
+    code += chars[randomIndex]
+  }
+  return code
+}
+
+// Utility function to check if a code is expired
+const isCodeExpired = (expiresAt) => {
+  return expiresAt && new Date() > new Date(expiresAt)
+}
 
 // @route   GET /api/events
 // @desc    Get all events
 // @access  Public
 exports.getEvents = async (req, res) => {
   try {
-    const events = await Event.find({ date: { $gte: new Date() } })
-      .populate("organizer", "name")
-      .populate("relatedSkills", "name category")
-      .sort({ date: 1 })
+    const {
+      category,
+      date,
+      isVirtual,
+      visibility,
+      page = 1,
+      limit = 10,
+      sortBy = "date",
+      sortOrder = "asc",
+    } = req.query
 
-    res.json(events)
-  } catch (err) {
-    console.error("Get events error:", err.message)
-    res.status(500).json({ message: "Server error" })
+    const query = {}
+    if (category) query.category = category
+    if (date) query.date = { $gte: new Date(date) }
+    if (isVirtual !== undefined) query.isVirtual = isVirtual === "true"
+    if (visibility) query.visibility = visibility
+
+    const sort = {}
+    sort[sortBy] = sortOrder === "asc" ? 1 : -1
+
+    const events = await Event.find(query)
+      .sort(sort)
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit))
+      .populate("organizer", "name email")
+      .populate("relatedSkills", "name")
+      .populate("participants.user", "name email")
+
+    const total = await Event.countDocuments(query)
+
+    res.json({
+      events,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalEvents: total,
+    })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
   }
 }
 
@@ -25,18 +74,22 @@ exports.getEvents = async (req, res) => {
 exports.getEventById = async (req, res) => {
   try {
     const event = await Event.findById(req.params.id)
-      .populate("organizer", "name profilePicture")
-      .populate("relatedSkills", "name category")
-      .populate("participants.user", "name profilePicture")
+      .populate("organizer", "name email")
+      .populate("relatedSkills", "name")
+      .populate("participants.user", "name email")
+      .populate("ratings.user", "name email")
 
     if (!event) {
       return res.status(404).json({ message: "Event not found" })
     }
 
+    // Increment views
+    event.views += 1
+    await event.save()
+
     res.json(event)
-  } catch (err) {
-    console.error("Get event error:", err.message)
-    res.status(500).json({ message: "Server error" })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
   }
 }
 
@@ -45,185 +98,178 @@ exports.getEventById = async (req, res) => {
 // @access  Private
 exports.createEvent = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
     const {
       title,
       description,
+      category,
       date,
       endDate,
       location,
       isVirtual,
       meetingLink,
+      image,
       relatedSkills,
       maxParticipants,
-    } = req.body;
+      visibility,
+    } = req.body
 
-    // Validate date
-    if (new Date(date) < new Date()) {
-      return res.status(400).json({ message: "Event date must be in the future" });
-    }
-
-    // Validate endDate if provided
-    if (endDate && new Date(endDate) < new Date(date)) {
-      return res.status(400).json({ message: "End date must be after start date" });
-    }
-
-    // Validate maxParticipants if provided
-    if (maxParticipants && maxParticipants < 1) {
-      return res.status(400).json({ message: "Max participants must be at least 1" });
-    }
-
-    // Create new event
     const event = new Event({
       title,
       description,
-      date: new Date(date),
-      endDate: endDate ? new Date(endDate) : undefined,
+      category,
+      date,
+      endDate,
       location,
-      isVirtual: isVirtual ?? true,
+      isVirtual,
       meetingLink,
-      relatedSkills: relatedSkills || [],
+      image,
+      relatedSkills,
+      organizer: req.user._id,
       maxParticipants,
-      organizer: req.user.id,
-    });
+      visibility,
+    })
 
-    await event.save();
+    await event.save()
 
-    // Populate the event with organizer and skills
-    const populatedEvent = await Event.findById(event._id)
-      .populate("organizer", "name profilePicture")
-      .populate("relatedSkills", "name category");
-
-    res.status(201).json(populatedEvent);
-  } catch (err) {
-    console.error("Create event error:", err);
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ message: err.message });
+    // Notify users with related skills
+    if (relatedSkills && relatedSkills.length > 0) {
+      await NotificationService.notifyUsersWithSkills(relatedSkills, {
+        title: 'New Event for Your Skills',
+        message: `${title} has been created and might interest you based on your skills.`,
+        type: 'event',
+        referenceId: event._id,
+        referenceType: 'Event'
+      });
     }
-    res.status(500).json({ message: "Server error" });
+
+    res.status(201).json(event)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
   }
-};
+}
 
 // @route   PUT /api/events/:id
 // @desc    Update an event
 // @access  Private
 exports.updateEvent = async (req, res) => {
   try {
-    const {
-      title,
-      description,
-      date,
-      endDate,
-      location,
-      isVirtual,
-      meetingLink,
-      relatedSkills,
-      maxParticipants,
-    } = req.body;
+    const event = await Event.findById(req.params.id)
 
-    // Find event and check if user is organizer
-    const event = await Event.findById(req.params.id);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return res.status(404).json({ message: "Event not found" })
     }
 
-    if (event.organizer.toString() !== req.user.id) {
-      return res.status(403).json({ message: "Not authorized" });
+    if (event.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to update this event" })
     }
 
-    // Update event fields
-    event.title = title ?? event.title;
-    event.description = description ?? event.description;
-    event.date = date ? new Date(date) : event.date;
-    event.endDate = endDate ? new Date(endDate) : event.endDate;
-    event.location = location ?? event.location;
-    event.isVirtual = isVirtual ?? event.isVirtual;
-    event.meetingLink = meetingLink ?? event.meetingLink;
-    event.relatedSkills = relatedSkills ?? event.relatedSkills;
-    event.maxParticipants = maxParticipants ?? event.maxParticipants;
+    const updatedEvent = await Event.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true }
+    )
 
-    await event.save();
-
-    // Populate the updated event
-    const populatedEvent = await Event.findById(event._id)
-      .populate("organizer", "name profilePicture")
-      .populate("relatedSkills", "name category")
-      .populate("participants.user", "name profilePicture");
-
-    res.json(populatedEvent);
-  } catch (err) {
-    console.error("Update event error:", err.message);
-    res.status(500).json({ message: "Server error" });
+    res.json(updatedEvent)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
   }
-};
+}
 
 // @route   DELETE /api/events/:id
 // @desc    Delete an event
 // @access  Private
 exports.deleteEvent = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id);
+    const event = await Event.findById(req.params.id)
+
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return res.status(404).json({ message: "Event not found" })
     }
 
-    if (event.organizer.toString() !== req.user.id) {
-      return res.status(403).json({ message: "Not authorized" });
+    if (event.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to delete this event" })
     }
 
-    await event.remove();
-    res.json({ message: "Event deleted" });
-  } catch (err) {
-    console.error("Delete event error:", err.message);
-    res.status(500).json({ message: "Server error" });
+    await event.remove()
+    res.json({ message: "Event deleted successfully" })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
   }
-};
+}
 
 // @route   POST /api/events/:id/register
 // @desc    Register for an event
 // @access  Private
 exports.registerForEvent = async (req, res) => {
+  console.log('\n=== Starting Event Registration ===');
+  console.log('Event ID:', req.params.id);
+  console.log('User ID:', req.user.id);
+
   try {
-    const event = await Event.findById(req.params.id);
+    const eventId = req.params.id;
+    const userId = req.user.id;
+
+    console.log('Finding event...');
+    const event = await Event.findById(eventId);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      console.log('Event not found with ID:', eventId);
+      return res.status(404).json({ message: 'Event not found' });
     }
-
-    // Check if event is full
-    if (event.maxParticipants && event.participants.length >= event.maxParticipants) {
-      return res.status(400).json({ message: "Event is full" });
-    }
-
-    // Check if user is already registered
-    const isRegistered = event.participants.some(
-      (p) => p.user.toString() === req.user.id
-    );
-    if (isRegistered) {
-      return res.status(400).json({ message: "Already registered for this event" });
-    }
-
-    // Add user to participants
-    event.participants.push({
-      user: req.user.id,
-      registeredAt: Date.now(),
+    console.log('Event found:', {
+      id: event._id,
+      title: event.title,
+      participants: event.participants.length
     });
 
+    // Check if user is already registered
+    console.log('Checking if user is already registered...');
+    const isRegistered = event.participants.some(p => p.user.toString() === userId);
+    if (isRegistered) {
+      console.log('User already registered');
+      return res.status(400).json({ message: 'Already registered for this event' });
+    }
+    console.log('User not registered yet');
+
+    // Generate a random 4-digit code
+    const registrationCode = Math.floor(1000 + Math.random() * 9000).toString();
+    console.log('Generated registration code:', registrationCode);
+
+    // Add user to participants with registration code
+    console.log('Adding user to participants...');
+    event.participants.push({
+      user: userId,
+      registrationCode: registrationCode,
+      registeredAt: new Date()
+    });
+
+    console.log('Saving event...');
     await event.save();
+    console.log('Event saved successfully');
 
-    // Populate the updated event
-    const populatedEvent = await Event.findById(event._id)
-      .populate("organizer", "name profilePicture")
-      .populate("relatedSkills", "name category")
-      .populate("participants.user", "name profilePicture");
+    // Create notification with registration code
+    console.log('Creating notification...');
+    const notification = new Notification({
+      user: userId,
+      title: 'Event Registration Successful',
+      message: `You've successfully registered for ${event.title}. Your registration code is: ${registrationCode}. Please keep this code for event check-in.`,
+      type: 'event',
+      read: false,
+      referenceId: event._id,
+      referenceType: 'Event'
+    });
+    await notification.save();
+    console.log('Notification created successfully');
 
-    res.json(populatedEvent);
-  } catch (err) {
-    console.error("Register for event error:", err.message);
-    res.status(500).json({ message: "Server error" });
+    console.log('=== Event Registration Completed ===\n');
+    res.json({ 
+      message: 'Successfully registered for event',
+      registrationCode: registrationCode
+    });
+  } catch (error) {
+    console.error('Error in registerForEvent:', error);
+    console.error('Error stack:', error.stack);
+    console.log('=== Event Registration Failed ===\n');
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -232,30 +278,22 @@ exports.registerForEvent = async (req, res) => {
 // @access  Private
 exports.unregisterFromEvent = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id);
+    const event = await Event.findById(req.params.id)
+
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return res.status(404).json({ message: "Event not found" })
     }
 
-    // Remove user from participants
     event.participants = event.participants.filter(
-      (p) => p.user.toString() !== req.user.id
-    );
+      (p) => p.user.toString() !== req.user._id.toString()
+    )
 
-    await event.save();
-
-    // Populate the updated event
-    const populatedEvent = await Event.findById(event._id)
-      .populate("organizer", "name profilePicture")
-      .populate("relatedSkills", "name category")
-      .populate("participants.user", "name profilePicture");
-
-    res.json(populatedEvent);
-  } catch (err) {
-    console.error("Unregister from event error:", err.message);
-    res.status(500).json({ message: "Server error" });
+    await event.save()
+    res.json(event)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
   }
-};
+}
 
 // @route   GET /api/events/user/events
 // @desc    Get events user is registered for
@@ -276,4 +314,245 @@ exports.getUserEvents = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// Rate event
+exports.rateEvent = async (req, res) => {
+  try {
+    const { rating, comment } = req.body
+    const event = await Event.findById(req.params.id)
+
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" })
+    }
+
+    // Check if user has already rated
+    const existingRating = event.ratings.find(
+      (r) => r.user.toString() === req.user._id.toString()
+    )
+
+    if (existingRating) {
+      existingRating.rating = rating
+      existingRating.comment = comment
+      existingRating.date = Date.now()
+    } else {
+      event.ratings.push({
+        user: req.user._id,
+        rating,
+        comment,
+      })
+    }
+
+    // Update popularity based on ratings
+    const totalRatings = event.ratings.length
+    const averageRating =
+      event.ratings.reduce((acc, curr) => acc + curr.rating, 0) / totalRatings
+    event.popularity = (averageRating * totalRatings) / 10
+
+    await event.save()
+    res.json(event)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
+
+// Get popular events
+exports.getPopularEvents = async (req, res) => {
+  try {
+    const { limit = 5 } = req.query
+
+    const events = await Event.find()
+      .sort({ popularity: -1 })
+      .limit(parseInt(limit))
+      .populate("organizer", "name email")
+      .populate("relatedSkills", "name")
+
+    res.json(events)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
+
+// Get upcoming events
+exports.getUpcomingEvents = async (req, res) => {
+  try {
+    const { limit = 5 } = req.query
+
+    const events = await Event.find({
+      date: { $gte: new Date() },
+    })
+      .sort({ date: 1 })
+      .limit(parseInt(limit))
+      .populate("organizer", "name email")
+      .populate("relatedSkills", "name")
+
+    res.json(events)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
+
+// Generate attendance code for a registered user
+exports.generateAttendanceCode = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id)
+
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" })
+    }
+
+    // Find the participant
+    const participant = event.participants.find(
+      (p) => p.user.toString() === req.user._id.toString()
+    )
+
+    if (!participant) {
+      return res.status(400).json({ message: "You are not registered for this event" })
+    }
+
+    // Generate new code
+    const code = generateAttendanceCode()
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + 2 * 60 * 60 * 1000) // 2 hours from now
+
+    // Update participant's code
+    participant.attendanceCode = code
+    participant.codeGeneratedAt = now
+    participant.codeExpiresAt = expiresAt
+    participant.attended = false
+    participant.attendanceVerifiedAt = null
+
+    await event.save()
+
+    res.json({
+      code,
+      expiresAt,
+      message: "Attendance code generated successfully"
+    })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
+
+// Get user's attendance code for an event
+exports.getMyAttendanceCode = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id)
+
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" })
+    }
+
+    const participant = event.participants.find(
+      (p) => p.user.toString() === req.user._id.toString()
+    )
+
+    if (!participant) {
+      return res.status(400).json({ message: "You are not registered for this event" })
+    }
+
+    if (!participant.attendanceCode) {
+      return res.status(404).json({ message: "No attendance code generated yet" })
+    }
+
+    if (isCodeExpired(participant.codeExpiresAt)) {
+      return res.status(400).json({ message: "Attendance code has expired" })
+    }
+
+    res.json({
+      code: participant.attendanceCode,
+      expiresAt: participant.codeExpiresAt,
+      attended: participant.attended
+    })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
+
+// Validate attendance code
+exports.validateAttendanceCode = async (req, res) => {
+  try {
+    const { code } = req.body
+
+    if (!code) {
+      return res.status(400).json({ message: "Attendance code is required" })
+    }
+
+    const event = await Event.findById(req.params.id)
+
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" })
+    }
+
+    // Find participant with matching code
+    const participant = event.participants.find(
+      (p) => p.attendanceCode === code
+    )
+
+    if (!participant) {
+      return res.status(400).json({ message: "Invalid attendance code" })
+    }
+
+    if (isCodeExpired(participant.codeExpiresAt)) {
+      return res.status(400).json({ message: "Attendance code has expired" })
+    }
+
+    if (participant.attended) {
+      return res.status(400).json({ message: "Attendance already verified" })
+    }
+
+    // Mark attendance
+    participant.attended = true
+    participant.attendanceVerifiedAt = new Date()
+
+    await event.save()
+
+    // Get user details for response
+    const user = await mongoose.model('User').findById(participant.user)
+      .select('name email')
+
+    res.json({
+      message: "Attendance verified successfully",
+      user: {
+        name: user.name,
+        email: user.email
+      },
+      verifiedAt: participant.attendanceVerifiedAt
+    })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
+
+// Get attendance statistics for an event
+exports.getAttendanceStats = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id)
+
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" })
+    }
+
+    // Check if user is organizer
+    if (event.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to view attendance stats" })
+    }
+
+    const totalParticipants = event.participants.length
+    const attendedParticipants = event.participants.filter(p => p.attended).length
+    const attendanceRate = totalParticipants > 0 ? (attendedParticipants / totalParticipants) * 100 : 0
+
+    res.json({
+      totalParticipants,
+      attendedParticipants,
+      attendanceRate: attendanceRate.toFixed(2),
+      participants: event.participants.map(p => ({
+        user: p.user,
+        attended: p.attended,
+        attendanceVerifiedAt: p.attendanceVerifiedAt
+      }))
+    })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
 

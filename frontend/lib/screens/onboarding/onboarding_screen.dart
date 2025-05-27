@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:skill_sharing_app/widget/custome_button.dart';
 import '../../theme/app_theme.dart';
-import 'package:frontend/widget/custome_button.dart';
 import '../auth/login_screen.dart';
 import '../auth/signup_screen.dart';
 
@@ -72,10 +72,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   const SizedBox(height: 32),
                   CustomButton(
-                    text:
-                        _currentPage == _pages.length - 1
-                            ? 'Get Started'
-                            : 'Next',
+                    text: _currentPage == _pages.length - 1
+                        ? 'Get Started'
+                        : 'Next',
                     onPressed: () {
                       if (_currentPage == _pages.length - 1) {
                         Navigator.pushReplacement(
@@ -157,10 +156,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       height: 8,
       width: _currentPage == index ? 24 : 8,
       decoration: BoxDecoration(
-        color:
-            _currentPage == index
-                ? AppTheme.primaryColor
-                : AppTheme.textSecondaryColor.withOpacity(0.3),
+        color: _currentPage == index
+            ? AppTheme.primaryColor
+            : AppTheme.textSecondaryColor.withOpacity(0.3),
         borderRadius: BorderRadius.circular(4),
       ),
     );

@@ -1,4 +1,4 @@
-import 'package:frontend/models/skill_model.dart';
+import 'package:skill_sharing_app/models/skill_model.dart';
 
 class Group {
   final String id;

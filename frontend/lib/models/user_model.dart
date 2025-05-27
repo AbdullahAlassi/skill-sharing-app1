@@ -1,5 +1,6 @@
-import 'package:frontend/models/skill_model.dart';
+import 'skill_model.dart';
 import 'skill_proficiency_model.dart';
+import 'skill_category.dart';
 
 class User {
   final String id;
@@ -13,7 +14,9 @@ class User {
   final List<String> createdSkills;
   final List<String> skills;
   final List<SkillProficiency>? skillProficiencies;
+  final bool isAdmin;
   final DateTime createdAt;
+  final String? preferredDifficulty;
 
   User({
     required this.id,
@@ -21,65 +24,120 @@ class User {
     required this.email,
     this.profilePicture,
     this.bio,
-    required this.favoriteCategories,
-    required this.friends,
-    required this.groups,
-    required this.createdSkills,
-    required this.skills,
+    List<String>? favoriteCategories,
+    List<String>? friends,
+    List<String>? groups,
+    List<String>? createdSkills,
+    List<String>? skills,
     this.skillProficiencies,
+    this.isAdmin = false,
     required this.createdAt,
-  });
+    this.preferredDifficulty,
+  })  : favoriteCategories = List<String>.from(favoriteCategories ?? []),
+        friends = List<String>.from(friends ?? []),
+        groups = List<String>.from(groups ?? []),
+        createdSkills = List<String>.from(createdSkills ?? []),
+        skills = List<String>.from(skills ?? []);
 
   factory User.fromJson(Map<String, dynamic> json) {
-    // Extract skill IDs and proficiencies from the nested skills array
-    List<String> skills = [];
-    Map<String, String> skillProficiencies = {};
-    if (json['skills'] != null && json['skills'] is List) {
-      for (var skillObj in json['skills']) {
-        if (skillObj is Map && skillObj['skill'] is Map) {
-          final skillId = skillObj['skill']['_id'].toString();
-          skills.add(skillId);
-          skillProficiencies[skillId] = skillObj['proficiency'] ?? 'Beginner';
+    print('\n=== User.fromJson Debug ===');
+    print('Raw JSON input: $json');
+
+    final userData = json['data'] ?? json;
+    print('Extracted user data: $userData');
+
+    // Handle skills array with detailed logging
+    print('\nProcessing skills array:');
+    print('Raw skills from JSON: ${userData['skills']}');
+    print('Raw skills type: ${userData['skills']?.runtimeType}');
+
+    final skills = <String>[];
+    final proficiencies = <SkillProficiency>[];
+
+    if (userData['skills'] != null && userData['skills'] is List) {
+      for (final skillObj in userData['skills']) {
+        print('Processing skill object: $skillObj');
+        if (skillObj is String) {
+          // Handle simple string ID
+          skills.add(skillObj);
+          print('Added skill ID (string): $skillObj');
+        } else if (skillObj is Map<String, dynamic>) {
+          // Handle complex object with skill and proficiency
+          final skillData = skillObj['skill'];
+          if (skillData is Map<String, dynamic>) {
+            final skillId = skillData['_id']?.toString() ?? '';
+            if (skillId.isNotEmpty) {
+              skills.add(skillId);
+              print('Added skill ID (from object): $skillId');
+            }
+
+            if (skillObj['proficiency'] != null) {
+              try {
+                proficiencies.add(SkillProficiency(
+                  skillId: skillId,
+                  level: ProficiencyLevel.values.firstWhere(
+                    (e) =>
+                        e.toString().split('.').last.toLowerCase() ==
+                        (skillObj['proficiency'] as String).toLowerCase(),
+                    orElse: () => ProficiencyLevel.beginner,
+                  ),
+                  startedLearning: DateTime.parse(
+                      skillObj['addedAt'] ?? DateTime.now().toIso8601String()),
+                ));
+              } catch (e) {
+                print('Error creating SkillProficiency: $e');
+              }
+            }
+          }
         }
       }
     }
 
+    // Handle createdSkills with detailed logging
+    print('\nProcessing createdSkills:');
+    print('Raw createdSkills from JSON: ${userData['createdSkills']}');
+    print('Raw createdSkills type: ${userData['createdSkills']?.runtimeType}');
+
+    final createdSkills = (userData['createdSkills'] as List<dynamic>?)
+            ?.map((e) {
+              print(
+                  'Processing createdSkill item: $e (type: ${e.runtimeType})');
+              if (e is String) {
+                print('  - String item: $e');
+                return e;
+              }
+              if (e is Map<String, dynamic> && e.containsKey('_id')) {
+                print('  - Map item with _id: ${e['_id']}');
+                return e['_id'] as String;
+              }
+              print('  - Invalid item type, returning empty string');
+              return '';
+            })
+            .where((id) => id.isNotEmpty)
+            .toList() ??
+        [];
+
+    print('\nFinal createdSkills:');
+    print('Converted createdSkills: $createdSkills');
+    print('Converted createdSkills type: ${createdSkills.runtimeType}');
+    print('=== End User.fromJson Debug ===\n');
+
     return User(
-      id: json['_id'] ?? '',
-      name: json['name'] ?? '',
-      email: json['email'] ?? '',
-      profilePicture: json['profilePicture'],
-      bio: json['bio'],
-      favoriteCategories: List<String>.from(json['favoriteCategories'] ?? []),
-      friends: List<String>.from(json['friends'] ?? []),
-      groups: List<String>.from(json['groups'] ?? []),
-      createdSkills: List<String>.from(json['createdSkills'] ?? []),
+      id: userData['_id']?.toString() ?? userData['id']?.toString() ?? '',
+      name: userData['name']?.toString() ?? '',
+      email: userData['email']?.toString() ?? '',
+      profilePicture: userData['profilePicture']?.toString(),
+      bio: userData['bio']?.toString(),
+      favoriteCategories:
+          List<String>.from(userData['favoriteCategories'] ?? []),
+      friends: List<String>.from(userData['friends'] ?? []),
+      groups: List<String>.from(userData['groups'] ?? []),
+      createdSkills: createdSkills,
       skills: skills,
-      skillProficiencies: json['skills'] != null
-          ? List<SkillProficiency>.from(
-              (json['skills'] as List).map((skillObj) {
-                if (skillObj is Map && skillObj['skill'] is Map) {
-                  return SkillProficiency(
-                    skillId: skillObj['skill']['_id'].toString(),
-                    level: ProficiencyLevel.values.firstWhere(
-                      (e) =>
-                          e.toString().split('.').last.toLowerCase() ==
-                          (skillObj['proficiency'] as String).toLowerCase(),
-                      orElse: () => ProficiencyLevel.beginner,
-                    ),
-                    startedLearning: DateTime.parse(skillObj['addedAt']),
-                  );
-                }
-                return SkillProficiency(
-                  skillId: '',
-                  level: ProficiencyLevel.beginner,
-                  startedLearning: DateTime.now(),
-                );
-              }),
-            )
-          : null,
-      createdAt:
-          DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+      skillProficiencies: proficiencies,
+      createdAt: userData['createdAt'] != null
+          ? DateTime.parse(userData['createdAt'])
+          : DateTime.now(),
     );
   }
 
@@ -95,8 +153,45 @@ class User {
       'groups': groups,
       'createdSkills': createdSkills,
       'skills': skills,
+      'isAdmin': isAdmin,
       'createdAt': createdAt.toIso8601String(),
+      'preferredDifficulty': preferredDifficulty,
     };
+  }
+
+  User copyWith({
+    String? id,
+    String? name,
+    String? email,
+    String? profilePicture,
+    String? bio,
+    List<String>? favoriteCategories,
+    List<String>? friends,
+    List<String>? groups,
+    List<String>? createdSkills,
+    List<String>? skills,
+    List<SkillProficiency>? skillProficiencies,
+    bool? isAdmin,
+    DateTime? createdAt,
+    String? preferredDifficulty,
+  }) {
+    return User(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      profilePicture: profilePicture ?? this.profilePicture,
+      bio: bio ?? this.bio,
+      favoriteCategories:
+          List<String>.from(favoriteCategories ?? this.favoriteCategories),
+      friends: List<String>.from(friends ?? this.friends),
+      groups: List<String>.from(groups ?? this.groups),
+      createdSkills: List<String>.from(createdSkills ?? this.createdSkills),
+      skills: List<String>.from(skills ?? this.skills),
+      skillProficiencies: skillProficiencies ?? this.skillProficiencies,
+      isAdmin: isAdmin ?? this.isAdmin,
+      createdAt: createdAt ?? this.createdAt,
+      preferredDifficulty: preferredDifficulty ?? this.preferredDifficulty,
+    );
   }
 }
 
@@ -117,6 +212,10 @@ class UserSkill {
               description: '',
               relatedSkills: [],
               createdAt: DateTime.now(),
+              difficultyLevel: '',
+              resources: [],
+              createdBy: null,
+              roadmap: [],
             ),
       proficiency: json['proficiency'] ?? 'Beginner',
     );

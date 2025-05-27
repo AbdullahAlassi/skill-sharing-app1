@@ -5,7 +5,7 @@ enum ButtonType { primary, secondary, text }
 
 class CustomButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final ButtonType type;
   final bool isLoading;
   final IconData? icon;
@@ -39,25 +39,24 @@ class CustomButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child:
-                isLoading
-                    ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                    : icon != null
+            child: isLoading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : icon != null
                     ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(icon),
-                        const SizedBox(width: 8),
-                        Text(text),
-                      ],
-                    )
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(icon),
+                          const SizedBox(width: 8),
+                          Text(text),
+                        ],
+                      )
                     : Text(text),
           ),
         );
@@ -74,34 +73,8 @@ class CustomButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child:
-                isLoading
-                    ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        color: AppTheme.primaryColor,
-                        strokeWidth: 2,
-                      ),
-                    )
-                    : icon != null
-                    ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(icon),
-                        const SizedBox(width: 8),
-                        Text(text),
-                      ],
-                    )
-                    : Text(text),
-          ),
-        );
-      case ButtonType.text:
-        return TextButton(
-          onPressed: isLoading ? null : onPressed,
-          child:
-              isLoading
-                  ? const SizedBox(
+            child: isLoading
+                ? const SizedBox(
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
@@ -109,15 +82,39 @@ class CustomButton extends StatelessWidget {
                       strokeWidth: 2,
                     ),
                   )
-                  : icon != null
+                : icon != null
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(icon),
+                          const SizedBox(width: 8),
+                          Text(text),
+                        ],
+                      )
+                    : Text(text),
+          ),
+        );
+      case ButtonType.text:
+        return TextButton(
+          onPressed: isLoading ? null : onPressed,
+          child: isLoading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: AppTheme.primaryColor,
+                    strokeWidth: 2,
+                  ),
+                )
+              : icon != null
                   ? Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(icon),
-                      const SizedBox(width: 8),
-                      Text(text),
-                    ],
-                  )
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icon),
+                        const SizedBox(width: 8),
+                        Text(text),
+                      ],
+                    )
                   : Text(text),
         );
     }

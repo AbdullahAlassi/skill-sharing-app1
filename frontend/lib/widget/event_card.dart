@@ -7,8 +7,14 @@ import '../screens/events/event_detail_screen.dart';
 class EventCard extends StatelessWidget {
   final Event event;
   final VoidCallback? onTap;
+  final bool isPast;
 
-  const EventCard({super.key, required this.event, this.onTap});
+  const EventCard({
+    super.key,
+    required this.event,
+    this.onTap,
+    this.isPast = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -44,25 +50,61 @@ class EventCard extends StatelessWidget {
             Container(
               height: 100,
               decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
+                gradient: isPast
+                    ? LinearGradient(
+                        colors: [
+                          Colors.grey.shade600,
+                          Colors.grey.shade800,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : AppTheme.primaryGradient,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(12),
                   topRight: Radius.circular(12),
                 ),
               ),
               padding: const EdgeInsets.all(16),
-              child: Center(
-                child: Text(
-                  event.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+              child: Stack(
+                children: [
+                  Center(
+                    child: Text(
+                      event.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  if (isPast)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Past Event',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
 
@@ -75,18 +117,20 @@ class EventCard extends StatelessWidget {
                   // Date and time
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.calendar_today,
                         size: 16,
-                        color: AppTheme.primaryColor,
+                        color: isPast ? Colors.grey : AppTheme.primaryColor,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           dateFormat.format(event.date),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: AppTheme.textSecondaryColor,
+                            color: isPast
+                                ? Colors.grey
+                                : AppTheme.textSecondaryColor,
                           ),
                         ),
                       ),
@@ -100,15 +144,17 @@ class EventCard extends StatelessWidget {
                       Icon(
                         event.isVirtual ? Icons.videocam : Icons.location_on,
                         size: 16,
-                        color: AppTheme.primaryColor,
+                        color: isPast ? Colors.grey : AppTheme.primaryColor,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           event.location,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: AppTheme.textSecondaryColor,
+                            color: isPast
+                                ? Colors.grey
+                                : AppTheme.textSecondaryColor,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -121,7 +167,10 @@ class EventCard extends StatelessWidget {
                   // Description
                   Text(
                     event.description,
-                    style: const TextStyle(fontSize: 14),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isPast ? Colors.grey : Colors.black,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),

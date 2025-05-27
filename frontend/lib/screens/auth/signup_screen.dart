@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:skill_sharing_app/widget/custome_button.dart';
+import 'package:skill_sharing_app/widget/custome_text.dart';
 import '../../theme/app_theme.dart';
-import 'package:frontend/widget/custome_button.dart';
-import 'package:frontend/widget/custome_text.dart';
-import '../home/home_screen.dart';
 import 'login_screen.dart';
 import 'favorite_categories_screen.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/auth_service.dart';
 import '../../config/app_config.dart';
+import '../../services/api_client.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -23,10 +23,18 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  late final AuthService _authService;
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    final apiClient = ApiClient(baseUrl: AppConfig.apiBaseUrl);
+    _authService = AuthService(apiClient);
+  }
 
   @override
   void dispose() {
@@ -53,8 +61,7 @@ class _SignupScreenState extends State<SignupScreen> {
       print('- Name: ${_nameController.text}');
       print('- Email: ${_emailController.text}');
 
-      final authService = AuthService(baseUrl: AppConfig.apiBaseUrl);
-      final response = await authService.register(
+      final response = await _authService.register(
         _nameController.text.trim(),
         _emailController.text.trim(),
         _passwordController.text,

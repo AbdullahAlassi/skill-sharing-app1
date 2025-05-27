@@ -6,6 +6,7 @@ import '../../widget/custome_button.dart';
 import '../../widget/skill_card.dart';
 import '../../models/skill_model.dart';
 import '../../providers/user_provider.dart';
+import '../../providers/skill_provider.dart';
 import 'skill_detail_screen.dart';
 import '../profile/profile_screen.dart';
 
@@ -18,15 +19,15 @@ class RecommendedSkillsScreen extends StatefulWidget {
 }
 
 class _RecommendedSkillsScreenState extends State<RecommendedSkillsScreen> {
-  final SkillService _skillService = SkillService();
-  List<Skill> _recommendedSkills = [];
   bool _isLoading = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _loadRecommendedSkills();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadRecommendedSkills();
+    });
   }
 
   Future<void> _loadRecommendedSkills() async {
@@ -36,26 +37,35 @@ class _RecommendedSkillsScreenState extends State<RecommendedSkillsScreen> {
     });
 
     try {
+      debugPrint('[RecommendedSkillsScreen] Loading recommended skills');
+
       // Get user data
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final user = userProvider.user;
 
       // If user is not loaded yet, wait for it
       if (user == null) {
-        await userProvider.loadUser();
+        debugPrint(
+            '[RecommendedSkillsScreen] User not found, attempting to load');
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          await userProvider.loadUser();
+        });
         final updatedUser = userProvider.user;
         if (updatedUser == null) {
+          debugPrint('[RecommendedSkillsScreen] Failed to load user');
           setState(() {
             _errorMessage = 'Please log in to view recommended skills';
             _isLoading = false;
           });
           return;
         }
+        debugPrint('[RecommendedSkillsScreen] User loaded successfully');
       }
 
       // Check if user has selected favorite categories
       if (userProvider.user?.favoriteCategories == null ||
           userProvider.user!.favoriteCategories!.isEmpty) {
+        debugPrint('[RecommendedSkillsScreen] No favorite categories selected');
         setState(() {
           _errorMessage = 'Please select your favorite categories first';
           _isLoading = false;
@@ -63,26 +73,18 @@ class _RecommendedSkillsScreenState extends State<RecommendedSkillsScreen> {
         return;
       }
 
-      // Load recommended skills
-      final response = await _skillService.getRecommendations();
-      if (response.success && response.data != null) {
-        // Filter skills by user's favorite categories
-        final filteredSkills = response.data!.where((skill) {
-          return userProvider.user!.favoriteCategories!
-              .contains(skill.category);
-        }).toList();
+      debugPrint(
+          '[RecommendedSkillsScreen] Loading recommendations via SkillProvider');
+      // Load recommended skills using SkillProvider
+      final skillProvider = Provider.of<SkillProvider>(context, listen: false);
+      await skillProvider.loadRecommendedSkills(context);
 
-        setState(() {
-          _recommendedSkills = filteredSkills;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _errorMessage = response.error ?? 'Failed to load recommended skills';
-          _isLoading = false;
-        });
-      }
+      debugPrint('[RecommendedSkillsScreen] Recommendations loaded');
+      setState(() {
+        _isLoading = false;
+      });
     } catch (e) {
+      debugPrint('[RecommendedSkillsScreen] Error loading recommendations: $e');
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -130,11 +132,34 @@ class _RecommendedSkillsScreenState extends State<RecommendedSkillsScreen> {
                     ],
                   ),
                 )
-              : _recommendedSkills.isEmpty
-                  ? const Center(
-                      child: Text('No recommended skills available'),
-                    )
-                  : RefreshIndicator(
+              : Consumer<SkillProvider>(
+                  builder: (context, skillProvider, child) {
+                    final recommendedSkills = skillProvider.recommendedSkills;
+                    debugPrint(
+                        '[RecommendedSkillsScreen] Building with ${recommendedSkills.length} skills');
+
+                    if (recommendedSkills.isEmpty) {
+                      debugPrint(
+                          '[RecommendedSkillsScreen] No recommended skills available');
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'No recommended skills available',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                            const SizedBox(height: 16),
+                            CustomButton(
+                              text: 'Refresh',
+                              onPressed: _loadRecommendedSkills,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return RefreshIndicator(
                       onRefresh: _loadRecommendedSkills,
                       child: GridView.builder(
                         padding: const EdgeInsets.all(16),
@@ -145,25 +170,71 @@ class _RecommendedSkillsScreenState extends State<RecommendedSkillsScreen> {
                           crossAxisSpacing: 16,
                           mainAxisSpacing: 16,
                         ),
-                        itemCount: _recommendedSkills.length,
+                        itemCount: recommendedSkills.length,
                         itemBuilder: (context, index) {
-                          final skill = _recommendedSkills[index];
-                          return SkillCard(
-                            skill: skill,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => SkillDetailScreen(
-                                    skill: skill,
+                          final skill = recommendedSkills[index];
+                          debugPrint(
+                              '[RecommendedSkillsScreen] Building skill card for: ${skill.name}');
+
+                          return Column(
+                            children: [
+                              Expanded(
+                                child: SkillCard(
+                                  skill: skill,
+                                  onTap: () {
+                                    debugPrint(
+                                        '[Analytics] User tapped recommended skill: ${skill.name}');
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => SkillDetailScreen(
+                                          skill: skill,
+                                        ),
+                                      ),
+                                    ).then((_) => _loadRecommendedSkills());
+                                  },
+                                ),
+                              ),
+                              if (skill.recommendationReason != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Tooltip(
+                                    message: skill.recommendationReason!,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8.0,
+                                        vertical: 4.0,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .secondary
+                                            .withOpacity(0.1),
+                                        borderRadius:
+                                            BorderRadius.circular(4.0),
+                                      ),
+                                      child: Text(
+                                        skill.recommendationReason!,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .secondary,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ).then((_) => _loadRecommendedSkills());
-                            },
+                            ],
                           );
                         },
                       ),
-                    ),
+                    );
+                  },
+                ),
     );
   }
 }

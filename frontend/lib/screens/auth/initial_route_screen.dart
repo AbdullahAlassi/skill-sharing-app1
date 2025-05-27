@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:skill_sharing_app/screens/home/dashboard_screen.dart';
 import '../../utils/token_storage.dart';
 import '../auth/login_screen.dart';
-import '../home/home_screen.dart';
 
 class InitialRouteScreen extends StatefulWidget {
   const InitialRouteScreen({super.key});
@@ -52,7 +52,7 @@ class _InitialRouteScreenState extends State<InitialRouteScreen> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
           );
         }
       }
@@ -78,10 +78,9 @@ class _InitialRouteScreenState extends State<InitialRouteScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child:
-            _isLoading
-                ? const CircularProgressIndicator()
-                : const Text('Loading...'),
+        child: _isLoading
+            ? const CircularProgressIndicator()
+            : const Text('Loading...'),
       ),
     );
   }

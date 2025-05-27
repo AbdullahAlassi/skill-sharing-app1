@@ -1,26 +1,96 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'providers/user_provider.dart';
-import 'screens/auth/login_screen.dart';
-import 'screens/auth/signup_screen.dart';
-import 'package:frontend/screens/home/home_screen.dart';
-import 'screens/skills/skills_screen.dart';
-import 'screens/skills/skill_detail_screen.dart';
-import 'screens/events/events_screen.dart';
-import 'package:frontend/screens/events/event_detail_screen.dart';
-import 'utils/token_storage.dart';
-import 'screens/onboarding/onboarding_screen.dart';
-import 'theme/app_theme.dart';
-import 'screens/auth/initial_route_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:skill_sharing_app/screens/home/dashboard_screen.dart';
+
+import 'package:skill_sharing_app/screens/onboarding/onboarding_screen.dart';
+import 'package:skill_sharing_app/theme/app_theme.dart';
+import 'package:skill_sharing_app/utils/token_storage.dart';
+import 'config/app_config.dart';
 import 'providers/auth_provider.dart';
-import 'screens/home/dashboard_screen.dart';
+import 'providers/user_provider.dart';
+import 'providers/skill_provider.dart';
+import 'providers/friend_provider.dart';
+import 'providers/chat_provider.dart';
+import 'providers/resource_provider.dart';
+import 'providers/social_provider.dart';
+import 'providers/progress_provider.dart';
+import 'providers/skill_category_provider.dart';
+import 'services/auth_service.dart';
+import 'services/profile_service.dart';
+import 'services/skill_service.dart';
+import 'services/friend_service.dart';
+import 'services/chat_service.dart';
+import 'services/resource_service.dart';
+import 'services/social_service.dart';
+import 'services/api_client.dart';
+import 'screens/splash/splash_screen.dart';
+import 'services/progress_service.dart';
+import 'providers/notification_provider.dart';
+import 'services/notification_service.dart';
+import 'screens/notification/notificationScreen.dart';
+
+// Global navigator key for accessing context from anywhere
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  runApp(MyApp(prefs: prefs));
+
+  // Initialize API client
+  final apiClient = ApiClient(baseUrl: AppConfig.apiBaseUrl);
+
+  // Initialize services
+  final authService = AuthService(apiClient);
+  final profileService = ProfileService(apiClient);
+  final skillService = SkillService(apiClient: apiClient);
+  final friendService = FriendService();
+  final chatService = ChatService(apiClient: apiClient);
+  final resourceService = ResourceService();
+  final socialService = SocialService(apiClient: apiClient);
+  final progressService = ProgressService(apiClient: apiClient);
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (context) => AuthProvider(authService, prefs, apiClient),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => UserProvider(profileService, apiClient),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => SkillProvider(skillService, progressService),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => FriendProvider(friendService),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => ChatProvider(chatService),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => ResourceProvider(resourceService),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => SocialProvider(socialService),
+        ),
+        ChangeNotifierProvider<ProgressProvider>(
+          create: (context) => ProgressProvider(progressService),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => NotificationProvider(
+            NotificationService(
+              baseUrl: AppConfig.apiBaseUrl,
+            ),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => SkillCategoryProvider(),
+        ),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class AuthWrapper extends StatefulWidget {
@@ -38,25 +108,41 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
+    print('\n[AuthWrapper] Initializing...');
     _checkAuthStatus();
   }
 
   Future<void> _checkAuthStatus() async {
     try {
-      final isLoggedIn = await TokenStorage.isLoggedIn();
+      print('[AuthWrapper] Checking auth status...');
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
 
-      if (isLoggedIn) {
-        // Load user data
-        final userProvider = Provider.of<UserProvider>(context, listen: false);
+      // Wait for auth provider to finish initializing
+      while (authProvider.isLoading) {
+        print('[AuthWrapper] Waiting for auth provider to initialize...');
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+
+      print(
+          '[AuthWrapper] Auth provider initialized: ${authProvider.isAuthenticated}');
+      print(
+          '[AuthWrapper] User provider initialized: ${userProvider.isLoggedIn}');
+
+      if (authProvider.isAuthenticated) {
+        print('[AuthWrapper] User is authenticated, loading user data...');
+        // User is authenticated, load user data
         await userProvider.loadUser();
 
         if (mounted) {
+          print('[AuthWrapper] Setting state to authenticated');
           setState(() {
             _isAuthenticated = true;
             _isLoading = false;
           });
         }
       } else {
+        print('[AuthWrapper] User is not authenticated');
         if (mounted) {
           setState(() {
             _isAuthenticated = false;
@@ -65,6 +151,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
       }
     } catch (e) {
+      print('[AuthWrapper] Error checking auth status: $e');
       if (mounted) {
         setState(() {
           _errorMessage =
@@ -77,11 +164,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
+    print('[AuthWrapper] Building with state:');
+    print('- isLoading: $_isLoading');
+    print('- isAuthenticated: $_isAuthenticated');
+    print('- errorMessage: $_errorMessage');
+
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      print('[AuthWrapper] Showing splash screen');
+      return const SplashScreen();
     }
 
     if (_errorMessage != null) {
+      print('[AuthWrapper] Showing error screen');
       return Scaffold(
         body: Center(
           child: Column(
@@ -103,44 +197,31 @@ class _AuthWrapperState extends State<AuthWrapper> {
       );
     }
 
-    return _isAuthenticated ? const HomeScreen() : const OnboardingScreen();
+    print(
+        '[AuthWrapper] Navigating to: ${_isAuthenticated ? "Dashboard" : "Onboarding"}');
+    return _isAuthenticated
+        ? const DashboardScreen()
+        : const OnboardingScreen();
   }
 }
 
 class MyApp extends StatelessWidget {
-  final SharedPreferences prefs;
-
-  const MyApp({super.key, required this.prefs});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider(prefs)),
-        ChangeNotifierProvider(create: (_) => UserProvider()),
-      ],
-      child: MaterialApp(
-        title: 'Skill Sharing App',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          visualDensity: VisualDensity.adaptivePlatformDensity,
-        ),
-        home: Consumer<AuthProvider>(
-          builder: (context, authProvider, _) {
-            if (authProvider.isLoading) {
-              return const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
-            return authProvider.isAuthenticated
-                ? const HomeScreen()
-                : const LoginScreen();
-          },
-        ),
-      ),
+    return MaterialApp(
+      navigatorKey: navigatorKey,
+      title: 'Skill Sharing App',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      home: const AuthWrapper(),
+      routes: {
+        '/splash': (context) => const SplashScreen(),
+        '/home': (context) => const DashboardScreen(),
+        '/onboarding': (context) => const OnboardingScreen(),
+        '/notifications': (context) => const NotificationScreen(),
+      },
     );
   }
 }

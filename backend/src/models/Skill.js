@@ -4,11 +4,17 @@ const SkillSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    unique: true
   },
   category: {
-    type: String,
-    required: true
+    _id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SkillCategory',
+      required: true
+    },
+    name: {
+      type: String,
+      required: true
+    }
   },
   description: {
     type: String,
@@ -23,6 +29,31 @@ const SkillSchema = new mongoose.Schema({
     enum: ['Beginner', 'Intermediate', 'Advanced'],
     default: 'Beginner'
   },
+  difficultyLevel: {
+    type: String,
+    enum: ['Beginner', 'Intermediate', 'Advanced', 'Expert'],
+    default: 'Beginner'
+  },
+  roadmap: [{
+    subskillId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Skill',
+      required: true
+    },
+    description: String,
+    required: {
+      type: Boolean,
+      default: true
+    },
+    order: {
+      type: Number,
+      default: 0
+    }
+  }],
+  resources: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Resource'
+  }],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

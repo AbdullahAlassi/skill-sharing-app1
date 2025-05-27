@@ -1,5 +1,5 @@
-name: frontend
-description: "A new Flutter project."
+name: skill_sharing_app
+description: A skill sharing mobile application.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -37,12 +37,20 @@ dependencies:
   provider: ^6.0.5
   http: ^1.1.0
   font_awesome_flutter: ^10.8.0
-  image_picker: ^1.1.2
+  image_picker: ^1.0.4
+  file_selector: ^1.0.3
   google_fonts: ^6.2.1
-  intl: ^0.20.2
+  intl: ^0.18.1
   url_launcher: ^6.1.12
   jwt_decoder: ^2.0.1
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.2.0
+  path_provider: ^2.1.1
+  http_parser: ^4.0.2
+  fl_chart: ^0.65.0
+  table_calendar: ^3.0.9
+  lottie: ^2.7.0
+  graphview: ^1.2.0
+  timeago: ^3.6.0
 
 dev_dependencies:
   flutter_test:
@@ -67,9 +75,10 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/images/
+    - assets/animations/
+    - assets/icons/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
