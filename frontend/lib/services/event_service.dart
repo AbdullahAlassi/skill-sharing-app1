@@ -249,13 +249,17 @@ class EventService {
   // Delete an event
   Future<ApiResponse<Map<String, dynamic>>> deleteEvent(String id) async {
     try {
-      final response = await _apiClient
-          .delete<Map<String, dynamic>>(
-            'api/events/$id',
-            (json) => json as Map<String, dynamic>,
-          )
-          .timeout(_timeoutDuration);
+      print('[DEBUG] Starting event deletion for event ID: $id');
 
+      final response = await _apiClient.delete<Map<String, dynamic>>(
+        'api/events/$id',
+        (json) {
+          print('[DEBUG] Delete response: $json');
+          return json as Map<String, dynamic>;
+        },
+      ).timeout(_timeoutDuration);
+
+      print('[DEBUG] Event deletion response: ${response.success}');
       return ApiResponse(
         success: true,
         data: response.data,
@@ -263,6 +267,7 @@ class EventService {
         statusCode: 200,
       );
     } on TimeoutException {
+      print('[DEBUG] Delete request timed out');
       return ApiResponse<Map<String, dynamic>>(
         success: false,
         error: 'Request timed out. Please check your internet connection.',
@@ -270,6 +275,7 @@ class EventService {
         statusCode: 408,
       );
     } catch (e) {
+      print('[DEBUG] Error in deleteEvent: $e');
       return ApiResponse<Map<String, dynamic>>(
         success: false,
         error: 'Failed to delete event: ${e.toString()}',

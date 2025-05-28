@@ -41,26 +41,40 @@ class SkillService {
       final endpoint =
           'api/skills/search${queryString.isNotEmpty ? '?$queryString' : ''}';
 
-      final response = await _apiClient.get<List<Skill>>(
-        endpoint,
-        (json) => (json as List)
-            .map((x) => Skill.fromJson(x as Map<String, dynamic>))
-            .toList(),
-      );
-
-      if (response.data != null) {
-        return ApiResponse(
-          success: true,
-          data: response.data,
-          message: 'Skills loaded successfully',
-          statusCode: 200,
-        );
+      final response = await _apiClient.get(endpoint, (json) => json);
+      if (response != null && response is ApiResponse) {
+        final body = response.data;
+        if (body is Map<String, dynamic> && body['data'] is List) {
+          final skills =
+              body['data'].map((item) => Skill.fromJson(item)).toList();
+          return ApiResponse(
+            success: true,
+            data: List<Skill>.from(skills),
+            message: 'Skills loaded successfully',
+            statusCode: response.statusCode,
+          );
+        } else if (body is List) {
+          final skills = body.map((item) => Skill.fromJson(item)).toList();
+          return ApiResponse(
+            success: true,
+            data: List<Skill>.from(skills),
+            message: 'Skills loaded successfully',
+            statusCode: response.statusCode,
+          );
+        } else {
+          return ApiResponse(
+            success: false,
+            error: 'Invalid response format',
+            message: 'Invalid response format',
+            statusCode: response.statusCode,
+          );
+        }
       } else {
         return ApiResponse(
           success: false,
-          error: 'No skills found',
-          message: 'No skills available',
-          statusCode: 404,
+          error: 'Failed to get skills',
+          message: 'Failed to get skills',
+          statusCode: 500,
         );
       }
     } catch (e) {
@@ -96,12 +110,21 @@ class SkillService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data is List) {
-          final skills = data.map((item) => Skill.fromJson(item)).toList();
+        final body = jsonDecode(response.body);
+        if (body is Map<String, dynamic> && body['data'] is List) {
+          final skills =
+              body['data'].map((item) => Skill.fromJson(item)).toList();
           return ApiResponse(
             success: true,
-            data: skills,
+            data: List<Skill>.from(skills),
+            message: 'Skills loaded successfully',
+            statusCode: response.statusCode,
+          );
+        } else if (body is List) {
+          final skills = body.map((item) => Skill.fromJson(item)).toList();
+          return ApiResponse(
+            success: true,
+            data: List<Skill>.from(skills),
             message: 'Skills loaded successfully',
             statusCode: response.statusCode,
           );

@@ -85,9 +85,12 @@ class Resource {
         id: skillData['_id']?.toString() ?? '',
         name: skillData['name']?.toString() ?? '',
         description: skillData['description']?.toString() ?? '',
-        category: skillData['category'] is Map
-            ? skillData['category']['name']?.toString() ?? ''
+        categoryId: skillData['category'] is Map
+            ? skillData['category']['_id']?.toString() ?? ''
             : skillData['category']?.toString() ?? '',
+        categoryName: skillData['category'] is Map
+            ? skillData['category']['name']?.toString() ?? ''
+            : '',
         relatedSkills: [],
         difficultyLevel: skillData['difficultyLevel']?.toString() ?? 'Beginner',
         resources: [],
@@ -97,13 +100,15 @@ class Resource {
                 DateTime.now(),
         createdBy: null,
         roadmap: [],
+        recommendationReason: null,
       );
     } else if (json['skill'] is String) {
       parsedSkill = Skill(
         id: json['skill'] as String,
         name: '',
         description: '',
-        category: '',
+        categoryId: '',
+        categoryName: '',
         relatedSkills: [],
         difficultyLevel: 'Beginner',
         resources: [],
@@ -111,6 +116,7 @@ class Resource {
         createdAt: DateTime.now(),
         createdBy: null,
         roadmap: [],
+        recommendationReason: null,
       );
     } else {
       print(
@@ -119,7 +125,8 @@ class Resource {
         id: '',
         name: '',
         description: '',
-        category: '',
+        categoryId: '',
+        categoryName: '',
         relatedSkills: [],
         difficultyLevel: 'Beginner',
         resources: [],
@@ -127,6 +134,7 @@ class Resource {
         createdAt: DateTime.now(),
         createdBy: null,
         roadmap: [],
+        recommendationReason: null,
       );
     }
 

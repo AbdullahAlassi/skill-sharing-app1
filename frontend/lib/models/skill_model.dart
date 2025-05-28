@@ -136,7 +136,8 @@ class SimpleUser {
 class Skill {
   final String id;
   final String name;
-  final String category;
+  final String categoryId;
+  final String categoryName;
   final String description;
   final List<String> relatedSkills;
   final String? proficiency;
@@ -150,7 +151,8 @@ class Skill {
   Skill({
     required this.id,
     required this.name,
-    required this.category,
+    required this.categoryId,
+    required this.categoryName,
     required this.description,
     required this.relatedSkills,
     this.proficiency,
@@ -163,12 +165,14 @@ class Skill {
   });
 
   factory Skill.fromJson(Map<String, dynamic> json) {
-    // Handle category which can be either a string or an object
-    String categoryIdentifier;
+    String categoryId = '';
+    String categoryName = '';
     if (json['category'] is Map) {
-      categoryIdentifier = json['category']['_id']?.toString() ?? '';
+      categoryId = json['category']['_id']?.toString() ?? '';
+      categoryName = json['category']['name']?.toString() ?? '';
     } else {
-      categoryIdentifier = json['category']?.toString() ?? '';
+      categoryId = json['category']?.toString() ?? '';
+      categoryName = '';
     }
 
     // Handle createdBy which can be either a string or an object
@@ -185,7 +189,8 @@ class Skill {
     return Skill(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
-      category: categoryIdentifier,
+      categoryId: categoryId,
+      categoryName: categoryName,
       description: json['description']?.toString() ?? '',
       relatedSkills: (json['relatedSkills'] as List<dynamic>?)
               ?.map((e) => e.toString())
@@ -205,6 +210,7 @@ class Skill {
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'].toString())
           : DateTime.now(),
+      recommendationReason: json['recommendationReason'],
     );
   }
 
@@ -212,7 +218,8 @@ class Skill {
     return {
       'id': id,
       'name': name,
-      'category': category,
+      'category': categoryId,
+      'categoryName': categoryName,
       'description': description,
       'relatedSkills': relatedSkills,
       'proficiency': proficiency,
@@ -225,13 +232,13 @@ class Skill {
     };
   }
 
-  String get categoryName => category;
-  String get categoryId => '';
+  String get categoryDisplayName => categoryName;
 
   Skill copyWith({
     String? id,
     String? name,
-    String? category,
+    String? categoryId,
+    String? categoryName,
     String? description,
     List<String>? relatedSkills,
     String? proficiency,
@@ -245,7 +252,8 @@ class Skill {
     return Skill(
       id: id ?? this.id,
       name: name ?? this.name,
-      category: category ?? this.category,
+      categoryId: categoryId ?? this.categoryId,
+      categoryName: categoryName ?? this.categoryName,
       description: description ?? this.description,
       relatedSkills: relatedSkills ?? this.relatedSkills,
       proficiency: proficiency ?? this.proficiency,

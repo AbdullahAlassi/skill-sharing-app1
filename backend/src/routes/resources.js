@@ -103,11 +103,11 @@ router.put(
 // @access  Private
 router.delete("/:id", auth, resourceController.deleteResource)
 
-// @route   POST /api/resources/:id/review
+// @route   POST /api/resources/:id/reviews
 // @desc    Add a review to a resource
 // @access  Private
 router.post(
-  "/:id/review",
+  "/:id/reviews",
   [auth, [check("rating", "Rating is required and must be between 1 and 5").isInt({ min: 1, max: 5 })]],
   resourceController.addReview,
 )

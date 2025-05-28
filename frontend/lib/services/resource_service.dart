@@ -59,16 +59,26 @@ class ResourceService {
 
   // Get resource by ID
   Future<ApiResponse<Resource>> getResourceById(String id) async {
-    final response = await _apiClient.get<Resource>(
+    final response = await _apiClient.get<Map<String, dynamic>>(
       'api/resources/$id',
-      (json) => Resource.fromJson(json),
+      (json) => json as Map<String, dynamic>,
     );
-    return ApiResponse(
-      success: true,
-      data: response.data,
-      message: 'Resource loaded successfully',
-      statusCode: 200,
-    );
+    if (response.success && response.data != null) {
+      final resource = Resource.fromJson(response.data!['data']);
+      return ApiResponse(
+        success: true,
+        data: resource,
+        message: 'Resource loaded successfully',
+        statusCode: 200,
+      );
+    } else {
+      return ApiResponse(
+        success: false,
+        error: 'Failed to load resource',
+        message: 'Failed to load resource',
+        statusCode: 500,
+      );
+    }
   }
 
   // Create a new resource

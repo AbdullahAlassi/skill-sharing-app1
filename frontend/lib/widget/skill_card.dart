@@ -22,7 +22,7 @@ class SkillCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: 160,
-        height: 280, // Fixed height for the card
+        height: 200,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),

@@ -79,11 +79,11 @@ class _CategorySkillsScreenState extends State<CategorySkillsScreen> {
           // Log each skill's category for debugging
           print('[DEBUG] Skills in provider:');
           for (var skill in skillProvider.skills) {
-            print('- Skill: ${skill.name}, Category: ${skill.category}');
+            print('- Skill: \\${skill.name}, Category: \\${skill.categoryId}');
           }
 
           final skills = skillProvider.skills
-              .where((skill) => skill.category == widget.category.id)
+              .where((skill) => skill.categoryId == widget.category.id)
               .toList();
 
           print('[DEBUG] Filtered skills for category: ${skills.length}');

@@ -181,7 +181,7 @@ exports.deleteResource = async (req, res) => {
       deleteFile(filePath)
     }
 
-    await resource.remove()
+    await Resource.findByIdAndDelete(req.params.id)
 
     res.json({ message: "Resource removed" })
   } catch (err) {
@@ -249,7 +249,7 @@ exports.addReview = async (req, res) => {
     // Populate user details before sending response
     await resource.populate("reviews.user", "name profilePicture")
 
-    res.status(201).json(resource.reviews)
+    res.status(201).json(resource.reviews[resource.reviews.length - 1])
   } catch (err) {
     console.error("Add review error:", err.message)
     res.status(500).json({ message: "Server error" })

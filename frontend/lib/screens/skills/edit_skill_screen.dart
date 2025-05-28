@@ -52,14 +52,8 @@ class _EditSkillScreenState extends State<EditSkillScreen> {
     _nameController.text = widget.skill.name;
     _descriptionController.text = widget.skill.description;
 
-    // Get category ID from the skill's category
-    if (widget.skill.category is Map<String, dynamic>) {
-      final categoryMap = widget.skill.category as Map<String, dynamic>;
-      _selectedCategory =
-          categoryMap['_id']?.toString() ?? categoryMap['id']?.toString();
-    } else if (widget.skill.category is String) {
-      _selectedCategory = widget.skill.category as String;
-    }
+    // Get category ID from the skill's categoryId
+    _selectedCategory = widget.skill.categoryId;
 
     _selectedRelatedSkills.addAll(widget.skill.relatedSkills);
     if (widget.skill.proficiency != null) {

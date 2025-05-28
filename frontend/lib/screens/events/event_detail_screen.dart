@@ -7,6 +7,7 @@ import '../../services/event_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/auth_provider.dart';
+import 'edit_event_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final Event event;
@@ -361,8 +362,20 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               Expanded(
                                 child: CustomButton(
                                   text: 'Edit Event',
-                                  onPressed: () {
-                                    // TODO: Navigate to edit event screen
+                                  onPressed: () async {
+                                    final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => EditEventScreen(
+                                          event: _event,
+                                        ),
+                                      ),
+                                    );
+                                    if (result != null && mounted) {
+                                      setState(() {
+                                        _event = result;
+                                      });
+                                    }
                                   },
                                   type: ButtonType.primary,
                                 ),
@@ -372,7 +385,96 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                 child: CustomButton(
                                   text: 'Delete Event',
                                   onPressed: () {
-                                    // TODO: Show delete confirmation dialog
+                                    showDialog(
+                                      context: context,
+                                      builder: (BuildContext context) {
+                                        return AlertDialog(
+                                          title: const Text('Delete Event'),
+                                          content: const Text(
+                                              'Are you sure you want to delete this event? This action cannot be undone.'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () {
+                                                Navigator.of(context).pop();
+                                              },
+                                              child: const Text('Cancel'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () async {
+                                                Navigator.of(context).pop();
+                                                if (!mounted) return;
+
+                                                setState(() {
+                                                  _isLoading = true;
+                                                });
+
+                                                try {
+                                                  final eventService =
+                                                      EventService();
+                                                  final response =
+                                                      await eventService
+                                                          .deleteEvent(
+                                                              _event.id);
+
+                                                  if (!mounted) return;
+
+                                                  if (response.success) {
+                                                    // Show success message before popping
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text(
+                                                            'Event deleted successfully'),
+                                                        backgroundColor:
+                                                            Colors.green,
+                                                      ),
+                                                    );
+                                                    // Pop back to previous screen
+                                                    Navigator.of(context).pop();
+                                                  } else {
+                                                    if (!mounted) return;
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(response
+                                                                .error ??
+                                                            'Failed to delete event'),
+                                                        backgroundColor:
+                                                            Colors.red,
+                                                      ),
+                                                    );
+                                                  }
+                                                } catch (e) {
+                                                  if (!mounted) return;
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                          'Error: ${e.toString()}'),
+                                                      backgroundColor:
+                                                          Colors.red,
+                                                    ),
+                                                  );
+                                                } finally {
+                                                  if (mounted) {
+                                                    setState(() {
+                                                      _isLoading = false;
+                                                    });
+                                                  }
+                                                }
+                                              },
+                                              child: const Text(
+                                                'Delete',
+                                                style: TextStyle(
+                                                    color: Colors.red),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    );
                                   },
                                   type: ButtonType.secondary,
                                 ),

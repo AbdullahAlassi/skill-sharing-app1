@@ -26,12 +26,22 @@ class ChatService {
   Future<ApiResponse<ChatMessage>> sendMessage(
       String friendId, String content) async {
     try {
-      final response = await _apiClient.post<ChatMessage>(
+      final response = await _apiClient.post<Map<String, dynamic>>(
         'api/social/chat/$friendId',
         {'content': content},
-        (json) => ChatMessage.fromJson(json),
+        (json) => json as Map<String, dynamic>,
       );
-      return response;
+
+      if (response.success && response.data != null) {
+        final messageData = response.data!['data'];
+        if (messageData != null) {
+          return ApiResponse.success(
+            data: ChatMessage.fromJson(messageData),
+            message: response.data!['message'] ?? 'Message sent successfully',
+          );
+        }
+      }
+      return ApiResponse.error(response.message ?? 'Failed to send message');
     } catch (e) {
       return ApiResponse.error(e.toString());
     }

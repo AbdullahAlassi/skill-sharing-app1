@@ -208,7 +208,8 @@ class UserSkill {
           : Skill(
               id: json['skill'] ?? '',
               name: '',
-              category: '',
+              categoryId: '',
+              categoryName: '',
               description: '',
               relatedSkills: [],
               createdAt: DateTime.now(),

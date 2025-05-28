@@ -16,10 +16,25 @@ class FriendRequest {
   });
 
   factory FriendRequest.fromJson(Map<String, dynamic> json) {
+    // Handle sender which can be either a full user object or just an ID
+    User parseUser(dynamic userData) {
+      if (userData is Map<String, dynamic>) {
+        return User.fromJson(userData);
+      } else {
+        // If it's just an ID, create a minimal user object
+        return User(
+          id: userData.toString(),
+          name: '',
+          email: '',
+          createdAt: DateTime.now(),
+        );
+      }
+    }
+
     return FriendRequest(
       id: json['_id'],
-      sender: User.fromJson(json['sender']),
-      receiver: User.fromJson(json['receiver']),
+      sender: parseUser(json['sender']),
+      receiver: parseUser(json['receiver']),
       status: json['status'],
       createdAt: DateTime.parse(json['createdAt']),
     );
@@ -46,11 +61,15 @@ class FriendRequestResponse {
   });
 
   factory FriendRequestResponse.fromJson(Map<String, dynamic> json) {
+    // Handle both direct data and nested data structure
+    final data = json['data'] ?? json;
+    final requestsList = data['requests'] as List;
+
     return FriendRequestResponse(
-      requests: (json['requests'] as List)
-          .map((x) => FriendRequest.fromJson(x))
+      requests: requestsList
+          .map((x) => FriendRequest.fromJson(x as Map<String, dynamic>))
           .toList(),
-      currentUserId: json['currentUserId'],
+      currentUserId: data['currentUserId'] ?? '',
     );
   }
 }

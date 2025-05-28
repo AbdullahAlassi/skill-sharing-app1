@@ -42,7 +42,8 @@ class GoalModel {
           : Skill(
               id: json['skill'],
               name: '',
-              category: '',
+              categoryId: '',
+              categoryName: '',
               description: '',
               relatedSkills: [],
               createdBy: null,
@@ -50,6 +51,8 @@ class GoalModel {
               difficultyLevel: 'Beginner',
               resources: [],
               roadmap: [],
+              proficiency: null,
+              recommendationReason: null,
             ),
       targetDate: DateTime.tryParse(json['targetDate'] ?? '') ?? DateTime.now(),
       currentProgress: (json['currentProgress'] as num?)?.toDouble() ?? 0.0,

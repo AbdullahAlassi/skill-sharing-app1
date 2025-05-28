@@ -190,7 +190,7 @@ exports.deleteEvent = async (req, res) => {
       return res.status(403).json({ message: "Not authorized to delete this event" })
     }
 
-    await event.remove()
+    await Event.findByIdAndDelete(req.params.id)
     res.json({ message: "Event deleted successfully" })
   } catch (error) {
     res.status(500).json({ message: error.message })

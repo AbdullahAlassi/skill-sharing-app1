@@ -82,12 +82,24 @@ class FriendService {
   Future<ApiResponse<FriendRequest>> acceptFriendRequest(
       String requestId) async {
     try {
-      final response = await _apiClient.put<FriendRequest>(
+      final response = await _apiClient.put<Map<String, dynamic>>(
         'api/social/friend-requests/$requestId/accept',
         {},
-        (json) => FriendRequest.fromJson(json),
+        (json) => json as Map<String, dynamic>,
       );
-      return response;
+
+      if (response.success && response.data != null) {
+        final friendRequestData = response.data!['friendRequest'];
+        if (friendRequestData != null) {
+          return ApiResponse.success(
+            data: FriendRequest.fromJson(friendRequestData),
+            message: response.data!['message'] ??
+                'Friend request accepted successfully',
+          );
+        }
+      }
+      return ApiResponse.error(
+          response.message ?? 'Failed to accept friend request');
     } catch (e) {
       return ApiResponse.error(e.toString());
     }
@@ -97,12 +109,24 @@ class FriendService {
   Future<ApiResponse<FriendRequest>> rejectFriendRequest(
       String requestId) async {
     try {
-      final response = await _apiClient.put<FriendRequest>(
+      final response = await _apiClient.put<Map<String, dynamic>>(
         'api/social/friend-requests/$requestId/reject',
         {},
-        (json) => FriendRequest.fromJson(json),
+        (json) => json as Map<String, dynamic>,
       );
-      return response;
+
+      if (response.success && response.data != null) {
+        final friendRequestData = response.data!['friendRequest'];
+        if (friendRequestData != null) {
+          return ApiResponse.success(
+            data: FriendRequest.fromJson(friendRequestData),
+            message: response.data!['message'] ??
+                'Friend request rejected successfully',
+          );
+        }
+      }
+      return ApiResponse.error(
+          response.message ?? 'Failed to reject friend request');
     } catch (e) {
       return ApiResponse.error(e.toString());
     }
@@ -154,12 +178,10 @@ class FriendService {
         },
       );
 
-      print('\n✅ Final users list: ${response.data?.length}');
+      print('\n✅ Final users list: \\${response.data?.length}');
       return ApiResponse<List<User>>(
         success: response.success,
-        data: response.data
-            ?.map((item) => User.fromJson(item as Map<String, dynamic>))
-            .toList(),
+        data: response.data as List<User>?,
         message: response.message,
       );
     } catch (e, stackTrace) {

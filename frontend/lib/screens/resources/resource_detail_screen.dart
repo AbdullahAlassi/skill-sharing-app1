@@ -13,6 +13,8 @@ import '../../providers/progress_provider.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../config/app_config.dart';
 import 'package:skill_sharing_app/services/api_client.dart';
+import 'package:skill_sharing_app/widget/skill_review_card.dart';
+import 'edit_resource_screen.dart';
 
 class ResourceDetailScreen extends StatefulWidget {
   final Resource resource;
@@ -40,6 +42,7 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen> {
   void initState() {
     super.initState();
     _resource = widget.resource;
+    _loadResource();
     _loadReviews();
   }
 
@@ -47,6 +50,27 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen> {
   void dispose() {
     _reviewController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadResource() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final resourceService = ResourceService();
+      final response = await resourceService.getResourceById(_resource.id);
+      if (response.success && response.data != null) {
+        setState(() {
+          _resource = response.data!;
+        });
+      }
+    } catch (e) {
+      // Optionally handle error
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadReviews() async {
@@ -185,7 +209,7 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen> {
         _reviewController.text,
       );
 
-      if (response.success) {
+      if (response.success && response.data != null) {
         _reviewController.clear();
         setState(() {
           _selectedRating = 0;
@@ -337,84 +361,13 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen> {
     );
   }
 
-  Widget _buildReviewsSection() {
-    if (_isLoadingReviews) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildReviewForm(),
-        if (_reviews.isEmpty)
-          const Center(
-            child: Text('No reviews yet'),
-          )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _reviews.length,
-            itemBuilder: (context, index) {
-              final review = _reviews[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            review.userName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            timeago.format(review.createdAt),
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: List.generate(
-                          5,
-                          (index) => Icon(
-                            Icons.star,
-                            size: 16,
-                            color: index < review.rating
-                                ? Colors.amber
-                                : Colors.grey[300],
-                          ),
-                        ),
-                      ),
-                      if (review.comment.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(review.comment),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final userId = context.watch<AuthProvider>().user?.id;
     final isCompleted =
         userId != null && isCompletedByCurrentUser(_resource, userId);
     final authProvider = context.watch<AuthProvider>();
+    final isCreator = userId != null && (_resource.addedBy['_id'] == userId);
 
     // Show a loading indicator if auth data is still loading or user is null
     if (authProvider.isLoading || authProvider.user == null) {
@@ -484,8 +437,8 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Add the button above the reviews section
-                  if (userId != null)
+                  // If not creator, show mark as completed button
+                  if (!isCreator && userId != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16.0),
                       child: SizedBox(
@@ -531,13 +484,197 @@ class _ResourceDetailScreenState extends State<ResourceDetailScreen> {
                       ),
                     ),
 
+                  // If creator, show edit and delete buttons
+                  if (isCreator)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _isLoading
+                                  ? null
+                                  : () async {
+                                      // Edit resource navigation
+                                      final updatedResource =
+                                          await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              EditResourceScreen(
+                                                  resource: _resource),
+                                        ),
+                                      );
+                                      if (updatedResource != null) {
+                                        setState(() {
+                                          _resource = updatedResource;
+                                        });
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                                'Resource updated successfully'),
+                                            backgroundColor: Colors.green,
+                                          ),
+                                        );
+                                      }
+                                    },
+                              icon: const Icon(Icons.edit),
+                              label: const Text('Edit Resource'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _isLoading
+                                  ? null
+                                  : () async {
+                                      // Delete resource logic
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          title: const Text('Delete Resource'),
+                                          content: const Text(
+                                              'Are you sure you want to delete this resource? This action cannot be undone.'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, false),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, true),
+                                              child: const Text('Delete',
+                                                  style: TextStyle(
+                                                      color: Colors.red)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                      if (confirm == true) {
+                                        setState(() {
+                                          _isLoading = true;
+                                        });
+                                        try {
+                                          final resourceService =
+                                              ResourceService();
+                                          final response = await resourceService
+                                              .deleteResource(_resource.id);
+                                          if (response.success) {
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                      'Resource deleted successfully'),
+                                                  backgroundColor: Colors.green,
+                                                ),
+                                              );
+                                              Navigator.pop(context);
+                                            }
+                                          } else {
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                  content: Text(response
+                                                          .error ??
+                                                      'Failed to delete resource'),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            }
+                                          }
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                    'Error: ${e.toString()}'),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        } finally {
+                                          if (mounted) {
+                                            setState(() {
+                                              _isLoading = false;
+                                            });
+                                          }
+                                        }
+                                      }
+                                    },
+                              icon: const Icon(Icons.delete),
+                              label: const Text('Delete Resource'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Reviews section
                   const SectionHeader(title: 'Reviews'),
                   const SizedBox(height: 16),
-                  _buildReviewsSection(),
+                  // If creator, show only reviews, else show review form and reviews
+                  if (isCreator)
+                    _buildReviewsSection(showForm: false)
+                  else
+                    _buildReviewsSection(showForm: true),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildReviewsSection({bool showForm = true}) {
+    if (_isLoadingReviews) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (showForm) _buildReviewForm(),
+        if (_reviews.isEmpty)
+          const Center(
+            child: Text('No reviews yet'),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _reviews.length,
+            itemBuilder: (context, index) {
+              final review = _reviews[index];
+              return SkillReviewCard(
+                userName: review.userName,
+                rating: review.rating,
+                comment: review.comment,
+                createdAt: review.createdAt,
+              );
+            },
+          ),
+      ],
     );
   }
 

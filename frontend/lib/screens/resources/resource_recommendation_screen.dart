@@ -109,7 +109,7 @@ class RecommendedResourcesWidget extends StatelessWidget {
 
     if (error != null) {
       return Center(
-        child: Column(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(error!, style: const TextStyle(color: Colors.red)),
@@ -133,14 +133,12 @@ class RecommendedResourcesWidget extends StatelessWidget {
 
     return RefreshIndicator(
       onRefresh: () async => onRefresh?.call(),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+      child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: resources
-              .map((resource) => _buildResourceCard(context, resource))
-              .toList(),
-        ),
+        itemCount: resources.length,
+        itemBuilder: (context, index) {
+          return _buildResourceCard(context, resources[index]);
+        },
       ),
     );
   }
@@ -148,6 +146,7 @@ class RecommendedResourcesWidget extends StatelessWidget {
   Widget _buildResourceCard(BuildContext context, Resource resource) {
     return Container(
       width: 400,
+      height: 120,
       margin: const EdgeInsets.only(right: 16),
       child: Card(
         elevation: 2,
