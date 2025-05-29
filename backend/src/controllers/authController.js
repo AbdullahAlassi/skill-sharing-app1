@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const User = require('../models/User');
@@ -25,15 +25,18 @@ exports.register = async (req, res) => {
     user = new User({
       name,
       email,
-      password
+      password: password.trim() // Ensure password is trimmed
     });
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
+    console.log('\n=== Registration Process ===');
+    console.log('Creating new user with:');
+    console.log('- Name:', name);
+    console.log('- Email:', email);
+    console.log('- Password length:', password.length);
 
-    // Save user to database
+    // Save user to database - let the pre-save hook handle password hashing
     await user.save();
+    console.log('User saved to database with hashed password:', user.password);
 
     // Create JWT payload
     const payload = {
@@ -77,6 +80,7 @@ exports.login = async (req, res) => {
   const { email, password } = req.body;
   console.log('\n=== Login Attempt ===');
   console.log('Email:', email);
+  console.log('Password length:', password.length);
 
   try {
     // Check if user exists
@@ -89,11 +93,18 @@ exports.login = async (req, res) => {
     console.log('Found user:', {
       id: user._id,
       email: user.email,
-      name: user.name
+      name: user.name,
+      hashedPassword: user.password
     });
 
-    // Validate password
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Validate password using the User model's method
+    console.log('Attempting password comparison...');
+    console.log('Input password:', password);
+    console.log('Stored hash:', user.password);
+    
+    const isMatch = await user.comparePassword(password);
+    console.log('Password comparison result:', isMatch);
+    
     if (!isMatch) {
       console.log('Invalid password');
       return res.status(400).json({ message: 'Invalid credentials' });
