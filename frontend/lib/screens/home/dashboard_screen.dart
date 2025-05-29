@@ -397,7 +397,7 @@ class _HomeContentState extends State<HomeContent> {
                     _recommendedSkills.isEmpty
                         ? const Center(child: Text('No skills available'))
                         : SizedBox(
-                            height: 200,
+                            height: 250,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: _recommendedSkills.length,
