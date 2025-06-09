@@ -66,7 +66,7 @@ UserSchema.index({ createdSkills: 1 });
 // Add method to compare password
 UserSchema.methods.comparePassword = async function(candidatePassword) {
   try {
-    const bcrypt = require('bcryptjs');
+  const bcrypt = require('bcryptjs');
     console.log('\n=== Password Comparison in User Model ===');
     console.log('Candidate password:', candidatePassword);
     console.log('Candidate password length:', candidatePassword.length);

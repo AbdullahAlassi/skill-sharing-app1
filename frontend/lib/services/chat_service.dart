@@ -12,11 +12,30 @@ class ChatService {
   // Get chat history with a friend
   Future<ApiResponse<List<ChatMessage>>> getChatHistory(String friendId) async {
     try {
-      final response = await _apiClient.get<List<ChatMessage>>(
+      final response = await _apiClient.get<Map<String, dynamic>>(
         'api/social/chat/$friendId',
-        (json) => (json as List).map((x) => ChatMessage.fromJson(x)).toList(),
+        (json) => json as Map<String, dynamic>,
       );
-      return response;
+
+      if (response.success && response.data != null) {
+        final messagesData = response.data!['data'] as List;
+        final formattedMessages = messagesData.map((message) {
+          return ChatMessage.fromJson({
+            '_id': message['_id'],
+            'sender': message['sender'],
+            'content': message['content'],
+            'createdAt': message['createdAt'],
+            'readBy': message['readBy'],
+          });
+        }).toList();
+        return ApiResponse.success(
+          data: formattedMessages,
+          message: response.data!['message'] ??
+              'Chat history retrieved successfully',
+        );
+      }
+      return ApiResponse.error(
+          response.message ?? 'Failed to load chat history');
     } catch (e) {
       return ApiResponse.error(e.toString());
     }
@@ -35,8 +54,16 @@ class ChatService {
       if (response.success && response.data != null) {
         final messageData = response.data!['data'];
         if (messageData != null) {
+          // Ensure the message data has the correct format
+          final formattedMessage = {
+            '_id': messageData['_id'],
+            'sender': messageData['sender'],
+            'content': messageData['content'],
+            'createdAt': messageData['createdAt'],
+            'readBy': messageData['readBy'],
+          };
           return ApiResponse.success(
-            data: ChatMessage.fromJson(messageData),
+            data: ChatMessage.fromJson(formattedMessage),
             message: response.data!['message'] ?? 'Message sent successfully',
           );
         }
