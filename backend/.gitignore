@@ -1,0 +1,62 @@
+# ================================
+# 🔹 General Node.js Backend Files
+# ================================
+
+# Ignore `node_modules` (dependencies)
+node_modules/
+
+# Ignore environment variables (API keys, database credentials)
+.env
+
+# Ignore logs and cache files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore build artifacts
+dist/
+build/
+tmp/
+
+# Ignore generated files
+.DS_Store
+Thumbs.db
+
+# ================================
+# 🔹 Flutter Frontend Files
+# ================================
+
+# Ignore build output and generated files
+frontend/build/
+frontend/.dart_tool/
+frontend/.packages
+frontend/pubspec.lock
+
+# Ignore iOS-specific files
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/flutter_export_environment.sh
+
+# Ignore Android-specific files
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/local.properties
+
+# Ignore IDE and Editor Files
+.vscode/
+.idea/
+*.iml
+
+# ================================
+# 🔹 Miscellaneous Files
+# ================================
+
+# Ignore Git merge conflict files
+*.orig
+
+# Ignore compiled Python files (if any scripts are used)
+__pycache__/
+*.pyc
