@@ -115,7 +115,7 @@ This project is licensed under the **MIT License**.
 For support or feedback, contact me:
 
 📧 **Email:** abdullah.alassi123@gmail.com  
-📌 **GitHub:** [yourusername](https://github.com/AbdullahAlassi)
+📌 **GitHub:** [Abdullah Alassi](https://github.com/AbdullahAlassi)
 ```
 
 ---
