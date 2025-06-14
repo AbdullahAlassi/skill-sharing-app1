@@ -1,12 +1,3 @@
-### **🚀 README File Structure for Your Skill-Sharing App**  
-A **well-structured `README.md` file** makes your project more professional and easier to understand for contributors, developers, and potential users.  
-
----
-
-## **📌 Recommended `README.md` Structure**
-Here’s a **template** you can use for your `README.md` file:
-
-```markdown
 # 📚 Skill-Sharing App
 
 A platform where users can **share, learn, and track skills** while accessing educational resources and participating in events.
