@@ -1,0 +1,2 @@
+C:/othmanProject/skill-sharing-app1/frontend/android/app/.cxx/RelWithDebInfo/326h5r56/x86_64/CMakeFiles/edit_cache.dir
+C:/othmanProject/skill-sharing-app1/frontend/android/app/.cxx/RelWithDebInfo/326h5r56/x86_64/CMakeFiles/rebuild_cache.dir

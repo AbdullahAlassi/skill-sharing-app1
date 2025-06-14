@@ -1,0 +1,1 @@
+C:\othmanProject\skill-sharing-app1\frontend\build\app\intermediates\cxx\RelWithDebInfo\326h5r56\obj\armeabi-v7a
