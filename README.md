@@ -116,14 +116,3 @@ For support or feedback, contact me:
 
 📧 **Email:** abdullah.alassi123@gmail.com  
 📌 **GitHub:** [Abdullah Alassi](https://github.com/AbdullahAlassi)
-```
-
----
-
-## **📌 How to Use This**
-✅ Copy-paste the above into your **`README.md`** file.  
-✅ Replace `yourusername`, `your-email@example.com`, and other placeholders.  
-✅ Update the **API Endpoints** section if more features are added.  
-
-🔥 **Now your project has a professional README!** 🚀  
-Let me know if you need more modifications! 😊
